@@ -14,7 +14,8 @@ function openDashboard() {
 
 function scrollToFeatures() {
 
-    const features = document.getElementById("features");
+    const features =
+        document.getElementById("features");
 
     if (features) {
 
@@ -23,36 +24,40 @@ function scrollToFeatures() {
         });
 
     }
-
 }
 
 
 // ============================================================
-// SAFE LOCAL STORAGE HELPERS
+// LOCAL STORAGE HELPERS
 // ============================================================
 
 function safeSetItem(key, value) {
 
     try {
 
-        localStorage.setItem(key, value);
+        localStorage.setItem(
+            key,
+            value
+        );
 
         return true;
 
     } catch (error) {
 
         console.warn(
-            "⚠️ LocalStorage error:",
+            "LocalStorage error:",
             error
         );
 
         return false;
     }
-
 }
 
 
-function safeGetJSON(key, fallback = []) {
+function safeGetJSON(
+    key,
+    fallback = []
+) {
 
     try {
 
@@ -68,142 +73,619 @@ function safeGetJSON(key, fallback = []) {
     } catch (error) {
 
         console.warn(
-            "⚠️ Could not read localStorage:",
+            "Could not read localStorage:",
             key
         );
 
         return fallback;
     }
-
 }
 
 
 // ============================================================
-// COMPRESS IMAGE FOR LOCAL STORAGE
+// INDEXED DB
+//
+// IMPORTANT:
+// Images are stored separately.
+// Each scan has its OWN image.
 // ============================================================
 
-function compressImage(file, maxWidth = 900, quality = 0.75) {
+const DB_NAME =
+    "CropGuardDB";
 
-    return new Promise((resolve, reject) => {
+const DB_VERSION =
+    2;
 
-        const reader =
-            new FileReader();
+const IMAGE_STORE =
+    "scanImages";
 
-        reader.onload = function (event) {
-
-            const img =
-                new Image();
-
-            img.onload = function () {
-
-                let width =
-                    img.width;
-
-                let height =
-                    img.height;
+let dbPromise = null;
 
 
-                // --------------------------------------------
-                // RESIZE LARGE IMAGES
-                // --------------------------------------------
+// ============================================================
+// OPEN DATABASE
+// ============================================================
 
-                if (width > maxWidth) {
+function openDatabase() {
 
-                    const ratio =
-                        maxWidth / width;
-
-                    width =
-                        maxWidth;
-
-                    height =
-                        Math.round(
-                            height * ratio
-                        );
-
-                }
+    if (dbPromise) {
+        return dbPromise;
+    }
 
 
-                const canvas =
-                    document.createElement(
-                        "canvas"
-                    );
+    dbPromise =
+        new Promise(
+            function(resolve, reject) {
 
-
-                canvas.width =
-                    width;
-
-                canvas.height =
-                    height;
-
-
-                const ctx =
-                    canvas.getContext(
-                        "2d"
-                    );
-
-
-                ctx.drawImage(
-                    img,
-                    0,
-                    0,
-                    width,
-                    height
-                );
-
-
-                // --------------------------------------------
-                // COMPRESS TO JPEG
-                // --------------------------------------------
-
-                const compressed =
-                    canvas.toDataURL(
-                        "image/jpeg",
-                        quality
-                    );
-
-
-                resolve(
-                    compressed
-                );
-
-            };
-
-
-            img.onerror =
-                function () {
+                if (!window.indexedDB) {
 
                     reject(
                         new Error(
-                            "Could not load image."
+                            "IndexedDB is not supported."
+                        )
+                    );
+
+                    return;
+                }
+
+
+                const request =
+                    indexedDB.open(
+                        DB_NAME,
+                        DB_VERSION
+                    );
+
+
+                request.onupgradeneeded =
+                    function(event) {
+
+                        const db =
+                            event.target.result;
+
+
+                        if (
+                            !db.objectStoreNames.contains(
+                                IMAGE_STORE
+                            )
+                        ) {
+
+                            db.createObjectStore(
+                                IMAGE_STORE,
+                                {
+                                    keyPath: "id"
+                                }
+                            );
+
+                        }
+
+                    };
+
+
+                request.onsuccess =
+                    function() {
+
+                        const db =
+                            request.result;
+
+
+                        db.onclose =
+                            function() {
+                                dbPromise = null;
+                            };
+
+
+                        resolve(db);
+
+                    };
+
+
+                request.onerror =
+                    function() {
+
+                        dbPromise = null;
+
+                        reject(
+                            request.error
+                        );
+
+                    };
+
+            }
+        );
+
+
+    return dbPromise;
+}
+
+
+// ============================================================
+// SAVE IMAGE
+// ============================================================
+
+async function saveScanImage(
+    scanId,
+    imageData
+) {
+
+    const db =
+        await openDatabase();
+
+
+    return new Promise(
+        function(resolve, reject) {
+
+            const transaction =
+                db.transaction(
+                    IMAGE_STORE,
+                    "readwrite"
+                );
+
+
+            const store =
+                transaction.objectStore(
+                    IMAGE_STORE
+                );
+
+
+            store.put({
+
+                id: String(scanId),
+
+                image: imageData
+
+            });
+
+
+            transaction.oncomplete =
+                function() {
+
+                    resolve(true);
+
+                };
+
+
+            transaction.onerror =
+                function() {
+
+                    reject(
+                        transaction.error
+                    );
+
+                };
+
+        }
+    );
+}
+
+
+// ============================================================
+// GET IMAGE
+// ============================================================
+
+async function getScanImage(
+    scanId
+) {
+
+    try {
+
+        const db =
+            await openDatabase();
+
+
+        return new Promise(
+            function(resolve, reject) {
+
+                const transaction =
+                    db.transaction(
+                        IMAGE_STORE,
+                        "readonly"
+                    );
+
+
+                const store =
+                    transaction.objectStore(
+                        IMAGE_STORE
+                    );
+
+
+                const request =
+                    store.get(
+                        String(scanId)
+                    );
+
+
+                request.onsuccess =
+                    function() {
+
+                        if (
+                            request.result
+                        ) {
+
+                            resolve(
+                                request.result.image
+                            );
+
+                        } else {
+
+                            resolve(null);
+
+                        }
+
+                    };
+
+
+                request.onerror =
+                    function() {
+
+                        reject(
+                            request.error
+                        );
+
+                    };
+
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Could not get scan image:",
+            error
+        );
+
+        return null;
+    }
+}
+
+
+// ============================================================
+// DELETE IMAGE
+// ============================================================
+
+async function deleteScanImage(
+    scanId
+) {
+
+    try {
+
+        const db =
+            await openDatabase();
+
+
+        return new Promise(
+            function(resolve, reject) {
+
+                const transaction =
+                    db.transaction(
+                        IMAGE_STORE,
+                        "readwrite"
+                    );
+
+
+                const store =
+                    transaction.objectStore(
+                        IMAGE_STORE
+                    );
+
+
+                store.delete(
+                    String(scanId)
+                );
+
+
+                transaction.oncomplete =
+                    function() {
+
+                        resolve(true);
+
+                    };
+
+
+                transaction.onerror =
+                    function() {
+
+                        reject(
+                            transaction.error
+                        );
+
+                    };
+
+            }
+        );
+
+    } catch (error) {
+
+        console.warn(
+            "Could not delete image:",
+            error
+        );
+
+        return false;
+    }
+}
+
+
+// ============================================================
+// IMAGE COMPRESSION
+// ============================================================
+
+function compressImage(
+    file,
+    maxWidth = 900,
+    quality = 0.75
+) {
+
+    return new Promise(
+        function(resolve, reject) {
+
+            const reader =
+                new FileReader();
+
+
+            reader.onload =
+                function(event) {
+
+                    const img =
+                        new Image();
+
+
+                    img.onload =
+                        function() {
+
+                            let width =
+                                img.width;
+
+                            let height =
+                                img.height;
+
+
+                            if (
+                                width > maxWidth
+                            ) {
+
+                                const ratio =
+                                    maxWidth /
+                                    width;
+
+
+                                width =
+                                    maxWidth;
+
+
+                                height =
+                                    Math.round(
+                                        height *
+                                        ratio
+                                    );
+
+                            }
+
+
+                            const canvas =
+                                document.createElement(
+                                    "canvas"
+                                );
+
+
+                            canvas.width =
+                                width;
+
+                            canvas.height =
+                                height;
+
+
+                            const ctx =
+                                canvas.getContext(
+                                    "2d"
+                                );
+
+
+                            ctx.drawImage(
+                                img,
+                                0,
+                                0,
+                                width,
+                                height
+                            );
+
+
+                            const compressed =
+                                canvas.toDataURL(
+                                    "image/jpeg",
+                                    quality
+                                );
+
+
+                            resolve(
+                                compressed
+                            );
+
+                        };
+
+
+                    img.onerror =
+                        function() {
+
+                            reject(
+                                new Error(
+                                    "Could not load image."
+                                )
+                            );
+
+                        };
+
+
+                    img.src =
+                        event.target.result;
+
+                };
+
+
+            reader.onerror =
+                function() {
+
+                    reject(
+                        new Error(
+                            "Could not read image."
                         )
                     );
 
                 };
 
 
-            img.src =
-                event.target.result;
+            reader.readAsDataURL(
+                file
+            );
 
-        };
+        }
+    );
+}
 
 
-        reader.onerror =
-            function () {
+// ============================================================
+// MIGRATE OLD HISTORY
+//
+// Old scans may have:
+// image: "data:image/..."
+//
+// New scans use:
+// imageKey: "unique-id"
+// ============================================================
 
-                reject(
-                    new Error(
-                        "Could not read image."
-                    )
+async function migrateOldHistory() {
+
+    let history =
+        safeGetJSON(
+            "scanHistory",
+            []
+        );
+
+
+    if (
+        !Array.isArray(history)
+    ) {
+        return;
+    }
+
+
+    let changed =
+        false;
+
+
+    for (
+        const scan of history
+    ) {
+
+        if (!scan) {
+            continue;
+        }
+
+
+        // Already has image key
+        if (scan.imageKey) {
+            continue;
+        }
+
+
+        // Old image exists
+        if (
+            scan.image &&
+            typeof scan.image === "string" &&
+            scan.image.startsWith("data:image")
+        ) {
+
+            try {
+
+                const id =
+                    scan.id ||
+                    (
+                        Date.now() +
+                        "-" +
+                        Math.random()
+                            .toString(36)
+                            .substring(2, 9)
+                    );
+
+
+                scan.id =
+                    id;
+
+
+                await saveScanImage(
+                    id,
+                    scan.image
                 );
 
-            };
+
+                scan.imageKey =
+                    String(id);
 
 
-        reader.readAsDataURL(file);
+                delete scan.image;
 
-    });
+
+                changed =
+                    true;
+
+
+                console.log(
+                    "Migrated old scan image:",
+                    id
+                );
+
+            } catch (error) {
+
+                console.warn(
+                    "Could not migrate old image:",
+                    error
+                );
+
+            }
+
+        }
+
+    }
+
+
+    if (changed) {
+
+        try {
+
+            localStorage.setItem(
+                "scanHistory",
+                JSON.stringify(history)
+            );
+
+            console.log(
+                "Old scan history migrated successfully."
+            );
+
+        } catch (error) {
+
+            console.warn(
+                "Could not save migrated history:",
+                error
+            );
+
+        }
+
+    }
 
 }
+
+
+// Run migration
+migrateOldHistory()
+    .catch(
+        function(error) {
+
+            console.warn(
+                "History migration failed:",
+                error
+            );
+
+        }
+    );
 
 
 // ============================================================
@@ -220,7 +702,7 @@ if (imageInput) {
 
     imageInput.addEventListener(
         "change",
-        function () {
+        function() {
 
             const file =
                 this.files[0];
@@ -230,10 +712,6 @@ if (imageInput) {
                 return;
             }
 
-
-            // --------------------------------------------
-            // CHECK FILE TYPE
-            // --------------------------------------------
 
             const allowedTypes = [
 
@@ -257,23 +735,20 @@ if (imageInput) {
                 );
 
 
-                this.value = "";
+                this.value =
+                    "";
+
 
                 return;
-
             }
 
-
-            // --------------------------------------------
-            // SHOW PREVIEW
-            // --------------------------------------------
 
             const reader =
                 new FileReader();
 
 
             reader.onload =
-                function (event) {
+                function(event) {
 
                     const previewImage =
                         document.getElementById(
@@ -305,7 +780,9 @@ if (imageInput) {
                 };
 
 
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(
+                file
+            );
 
         }
     );
@@ -325,10 +802,6 @@ async function analyzeCrop() {
         );
 
 
-    // ========================================================
-    // CHECK IMAGE
-    // ========================================================
-
     if (
         !imageInput ||
         !imageInput.files.length
@@ -339,17 +812,12 @@ async function analyzeCrop() {
         );
 
         return;
-
     }
 
 
     const file =
         imageInput.files[0];
 
-
-    // ========================================================
-    // CREATE FORM DATA
-    // ========================================================
 
     const formData =
         new FormData();
@@ -364,12 +832,12 @@ async function analyzeCrop() {
     try {
 
         console.log(
-            "🌱 Sending image to CropGuard backend..."
+            "Sending image to CropGuard backend..."
         );
 
 
         // ====================================================
-        // SEND IMAGE TO FLASK
+        // SEND TO FLASK
         // ====================================================
 
         const response =
@@ -382,16 +850,6 @@ async function analyzeCrop() {
             );
 
 
-        console.log(
-            "Backend HTTP status:",
-            response.status
-        );
-
-
-        // ====================================================
-        // CHECK HTTP RESPONSE
-        // ====================================================
-
         if (!response.ok) {
 
             throw new Error(
@@ -402,313 +860,281 @@ async function analyzeCrop() {
         }
 
 
-        // ====================================================
-        // READ JSON
-        // ====================================================
-
         const data =
             await response.json();
 
 
         console.log(
-            "🌱 AI RESULT:",
+            "AI RESULT:",
             data
         );
 
 
-        // ====================================================
-        // BACKEND SUCCESS
-        // ====================================================
-
-        if (data.success) {
-
-
-            // =================================================
-            // SAVE COMPRESSED IMAGE
-            // =================================================
-
-            console.log(
-                "🖼️ Compressing image..."
-            );
-
-
-            let compressedImage = "";
-
-
-            try {
-
-                compressedImage =
-                    await compressImage(
-                        file,
-                        900,
-                        0.75
-                    );
-
-
-                console.log(
-                    "✅ Image compressed successfully."
-                );
-
-            } catch (imageError) {
-
-                console.warn(
-                    "⚠️ Image compression failed:",
-                    imageError
-                );
-
-            }
-
-
-            // =================================================
-            // SAVE CURRENT IMAGE
-            // =================================================
-
-            if (compressedImage) {
-
-                const imageSaved =
-                    safeSetItem(
-                        "cropImage",
-                        compressedImage
-                    );
-
-
-                if (!imageSaved) {
-
-                    console.warn(
-                        "⚠️ Could not save crop image."
-                    );
-
-                }
-
-            }
-
-
-            // =================================================
-            // SAVE CURRENT AI RESULT
-            // =================================================
-
-            safeSetItem(
-                "analysisResult",
-                JSON.stringify(data)
-            );
-
-
-            // =================================================
-            // GET EXISTING HISTORY
-            // =================================================
-
-            let scanHistory =
-                safeGetJSON(
-                    "scanHistory",
-                    []
-                );
-
-
-            // Make sure history is actually an array
-
-            if (!Array.isArray(scanHistory)) {
-
-                scanHistory = [];
-
-            }
-
-
-            // =================================================
-            // CREATE NEW SCAN
-            // =================================================
-
-            const newScan = {
-
-                id:
-                    Date.now(),
-
-
-                crop:
-                    data.crop ||
-                    "Unable to identify",
-
-
-                disease:
-                    data.disease ||
-                    "Uncertain result",
-
-
-                confidence:
-                    Number(
-                        data.confidence || 0
-                    ),
-
-
-                severity:
-                    data.severity ||
-                    "Unknown",
-
-
-                risk:
-                    data.risk ||
-                    "Unknown",
-
-
-                status:
-                    data.status ||
-                    "uncertain",
-
-
-                // IMPORTANT:
-                // DO NOT STORE BASE64 IMAGE HERE
-                image:
-                    "",
-
-
-                date:
-                    new Date().toLocaleDateString(
-                        "en-GB",
-                        {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric"
-                        }
-                    ),
-
-
-                cropIcon:
-                    "🌱"
-
-            };
-
-
-            // =================================================
-            // ADD NEW SCAN
-            // =================================================
-
-            scanHistory.push(
-                newScan
-            );
-
-
-            // =================================================
-            // KEEP ONLY LAST 20 SCANS
-            // =================================================
-
-            if (
-                scanHistory.length >
-                20
-            ) {
-
-                scanHistory =
-                    scanHistory.slice(
-                        -20
-                    );
-
-            }
-
-
-            // =================================================
-            // SAVE HISTORY
-            // =================================================
-
-            let historySaved =
-                safeSetItem(
-                    "scanHistory",
-                    JSON.stringify(
-                        scanHistory
-                    )
-                );
-
-
-            // =================================================
-            // IF STORAGE QUOTA ERROR
-            // =================================================
-
-            if (!historySaved) {
-
-                console.warn(
-                    "⚠️ Storage quota reached. Cleaning old scans..."
-                );
-
-
-                // Keep only latest 10
-
-                scanHistory =
-                    scanHistory.slice(
-                        -10
-                    );
-
-
-                historySaved =
-                    safeSetItem(
-                        "scanHistory",
-                        JSON.stringify(
-                            scanHistory
-                        )
-                    );
-
-
-                // If still failing, keep only current scan
-
-                if (!historySaved) {
-
-                    console.warn(
-                        "⚠️ Still too large. Keeping only current scan."
-                    );
-
-
-                    historySaved =
-                        safeSetItem(
-                            "scanHistory",
-                            JSON.stringify([
-                                newScan
-                            ])
-                        );
-
-                }
-
-            }
-
-
-            if (historySaved) {
-
-                console.log(
-                    "✅ Scan saved to history."
-                );
-
-            } else {
-
-                console.warn(
-                    "⚠️ Scan could not be saved to history."
-                );
-
-            }
-
-
-            // =================================================
-            // OPEN RESULT PAGE
-            // =================================================
-
-            window.location.href =
-                "result.html";
-
-        }
-
-
-        // ====================================================
-        // BACKEND RESPONSE BUT ANALYSIS FAILED
-        // ====================================================
-
-        else {
+        if (!data.success) {
 
             alert(
                 data.message ||
                 "CropGuard could not analyze this image."
             );
 
+            return;
         }
+
+
+        // ====================================================
+        // CREATE UNIQUE SCAN ID
+        // ====================================================
+
+        const scanId =
+            Date.now() +
+            "-" +
+            Math.random()
+                .toString(36)
+                .substring(2, 9);
+
+
+        // ====================================================
+        // COMPRESS IMAGE
+        // ====================================================
+
+        console.log(
+            "Compressing image..."
+        );
+
+
+        let compressedImage;
+
+
+        try {
+
+            compressedImage =
+                await compressImage(
+                    file,
+                    900,
+                    0.75
+                );
+
+        } catch (error) {
+
+            console.error(
+                "Image compression failed:",
+                error
+            );
+
+
+            alert(
+                "Could not process the uploaded image."
+            );
+
+
+            return;
+        }
+
+
+        // ====================================================
+        // SAVE IMAGE TO INDEXED DB
+        //
+        // IMPORTANT:
+        // NO IMAGE IS SAVED TO LOCAL STORAGE.
+        // ====================================================
+
+        await saveScanImage(
+            scanId,
+            compressedImage
+        );
+
+
+        console.log(
+            "Image saved in IndexedDB:",
+            scanId
+        );
+
+
+        // ====================================================
+        // SAVE CURRENT RESULT
+        // ====================================================
+
+        safeSetItem(
+            "analysisResult",
+            JSON.stringify(data)
+        );
+
+
+        // ====================================================
+        // REMEMBER WHICH SCAN IS CURRENT
+        //
+        // Only the ID is stored.
+        // ====================================================
+
+        safeSetItem(
+            "selectedScanId",
+            String(scanId)
+        );
+
+
+        // ====================================================
+        // GET HISTORY
+        // ====================================================
+
+        let scanHistory =
+            safeGetJSON(
+                "scanHistory",
+                []
+            );
+
+
+        if (
+            !Array.isArray(scanHistory)
+        ) {
+
+            scanHistory =
+                [];
+
+        }
+
+
+        // ====================================================
+        // CREATE NEW SCAN
+        // ====================================================
+
+        const newScan = {
+
+            id:
+                String(scanId),
+
+            crop:
+                data.crop ||
+                "Unable to identify",
+
+            disease:
+                data.disease ||
+                "Uncertain result",
+
+            confidence:
+                Number(
+                    data.confidence || 0
+                ),
+
+            severity:
+                data.severity ||
+                "Unknown",
+
+            risk:
+                data.risk ||
+                "Unknown",
+
+            status:
+                data.status ||
+                "uncertain",
+
+            // ONLY THE IMAGE KEY
+            imageKey:
+                String(scanId),
+
+            date:
+                new Date().toLocaleDateString(
+                    "en-GB",
+                    {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric"
+                    }
+                ),
+
+            cropIcon:
+                getCropIcon(
+                    data.crop
+                )
+
+        };
+
+
+        // ====================================================
+        // ADD NEW SCAN
+        // ====================================================
+
+        scanHistory.push(
+            newScan
+        );
+
+
+        // ====================================================
+        // KEEP LAST 20
+        // ====================================================
+
+        if (
+            scanHistory.length > 20
+        ) {
+
+            const removedScans =
+                scanHistory.splice(
+                    0,
+                    scanHistory.length - 20
+                );
+
+
+            for (
+                const oldScan
+                of removedScans
+            ) {
+
+                if (
+                    oldScan &&
+                    oldScan.imageKey
+                ) {
+
+                    await deleteScanImage(
+                        oldScan.imageKey
+                    );
+
+                }
+
+            }
+
+        }
+
+
+        // ====================================================
+        // SAVE HISTORY
+        // ====================================================
+
+        const historySaved =
+            safeSetItem(
+                "scanHistory",
+                JSON.stringify(
+                    scanHistory
+                )
+            );
+
+
+        if (!historySaved) {
+
+            alert(
+                "Scan completed, but history could not be saved."
+            );
+
+            return;
+        }
+
+
+        console.log(
+            "Scan saved successfully:",
+            scanId
+        );
+
+
+        // ====================================================
+        // OPEN RESULT PAGE
+        // ====================================================
+
+        window.location.href =
+            "result.html";
 
 
     } catch (error) {
 
         console.error(
-            "❌ CropGuard error:",
+            "CropGuard error:",
             error
         );
 
@@ -724,27 +1150,380 @@ async function analyzeCrop() {
 
 
 // ============================================================
-// SHOW IMAGE ON RESULT PAGE
+// CROP ICON
 // ============================================================
 
-const resultImage =
-    document.getElementById(
-        "resultImage"
-    );
+function getCropIcon(crop) {
+
+    const name =
+        String(
+            crop || ""
+        ).toLowerCase();
 
 
-if (resultImage) {
+    if (
+        name.includes("corn") ||
+        name.includes("maize")
+    ) {
 
-    const savedImage =
-        localStorage.getItem(
+        return "🌽";
+
+    }
+
+
+    if (
+        name.includes("tomato")
+    ) {
+
+        return "🍅";
+
+    }
+
+
+    if (
+        name.includes("rice")
+    ) {
+
+        return "🌾";
+
+    }
+
+
+    if (
+        name.includes("potato")
+    ) {
+
+        return "🥔";
+
+    }
+
+
+    if (
+        name.includes("peach")
+    ) {
+
+        return "🍑";
+
+    }
+
+
+    if (
+        name.includes("apple")
+    ) {
+
+        return "🍎";
+
+    }
+
+
+    if (
+        name.includes("grape")
+    ) {
+
+        return "🍇";
+
+    }
+
+
+    if (
+        name.includes("strawberry")
+    ) {
+
+        return "🍓";
+
+    }
+
+
+    return "🌱";
+}
+
+
+// ============================================================
+// RESULT PAGE
+//
+// IMPORTANT:
+// Result image is loaded from IndexedDB.
+// NOT localStorage.
+// ============================================================
+
+async function loadResultPage() {
+
+    const resultImage =
+        document.getElementById(
             "cropImage"
         );
 
 
-    if (savedImage) {
+    if (!resultImage) {
+        return;
+    }
 
-        resultImage.src =
-            savedImage;
+
+    // ========================================================
+    // GET CURRENT SCAN ID
+    // ========================================================
+
+    const selectedScanId =
+        localStorage.getItem(
+            "selectedScanId"
+        );
+
+
+    // ========================================================
+    // LOAD IMAGE FROM INDEXED DB
+    // ========================================================
+
+    if (selectedScanId) {
+
+        try {
+
+            const image =
+                await getScanImage(
+                    selectedScanId
+                );
+
+
+            if (image) {
+
+                resultImage.src =
+                    image;
+
+
+                console.log(
+                    "Correct scan image loaded:",
+                    selectedScanId
+                );
+
+            } else {
+
+                console.warn(
+                    "No image found for scan:",
+                    selectedScanId
+                );
+
+                resultImage.removeAttribute(
+                    "src"
+                );
+
+            }
+
+        } catch (error) {
+
+            console.error(
+                "Could not load result image:",
+                error
+            );
+
+        }
+
+    }
+
+
+    // ========================================================
+    // LOAD RESULT
+    // ========================================================
+
+    let result =
+        null;
+
+
+    try {
+
+        const saved =
+            localStorage.getItem(
+                "analysisResult"
+            );
+
+
+        if (saved) {
+
+            result =
+                JSON.parse(
+                    saved
+                );
+
+        }
+
+    } catch (error) {
+
+        console.warn(
+            "Could not load analysis result."
+        );
+
+    }
+
+
+    if (!result) {
+        return;
+    }
+
+
+    const cropName =
+        document.getElementById(
+            "cropName"
+        );
+
+
+    const diseaseName =
+        document.getElementById(
+            "diseaseName"
+        );
+
+
+    const confidenceText =
+        document.getElementById(
+            "confidenceText"
+        );
+
+
+    const confidenceBar =
+        document.getElementById(
+            "confidenceBar"
+        );
+
+
+    const severity =
+        document.getElementById(
+            "severity"
+        );
+
+
+    const risk =
+        document.getElementById(
+            "risk"
+        );
+
+
+    // ========================================================
+    // UNCERTAIN
+    // ========================================================
+
+    if (
+        result.status ===
+        "uncertain"
+    ) {
+
+        if (cropName) {
+
+            cropName.textContent =
+                result.crop ||
+                "Unable to identify";
+
+        }
+
+
+        if (diseaseName) {
+
+            diseaseName.textContent =
+                result.disease ||
+                "Uncertain result";
+
+        }
+
+
+        if (confidenceText) {
+
+            confidenceText.textContent =
+                result.confidence ||
+                0;
+
+        }
+
+
+        if (confidenceBar) {
+
+            confidenceBar.style.width =
+                (
+                    result.confidence ||
+                    0
+                ) + "%";
+
+        }
+
+
+        if (severity) {
+
+            severity.textContent =
+                "Unknown";
+
+        }
+
+
+        if (risk) {
+
+            risk.textContent =
+                "Unknown";
+
+        }
+
+
+        return;
+    }
+
+
+    // ========================================================
+    // SUCCESS
+    // ========================================================
+
+    if (
+        result.status ===
+        "success"
+    ) {
+
+        if (cropName) {
+
+            cropName.textContent =
+                result.crop ||
+                "Unknown";
+
+        }
+
+
+        if (diseaseName) {
+
+            diseaseName.textContent =
+                result.disease ||
+                "Unknown";
+
+        }
+
+
+        if (confidenceText) {
+
+            confidenceText.textContent =
+                result.confidence ||
+                0;
+
+        }
+
+
+        if (confidenceBar) {
+
+            confidenceBar.style.width =
+                (
+                    result.confidence ||
+                    0
+                ) + "%";
+
+        }
+
+
+        if (severity) {
+
+            severity.textContent =
+                result.severity ||
+                "Unknown";
+
+        }
+
+
+        if (risk) {
+
+            risk.textContent =
+                result.risk ||
+                "Unknown";
+
+        }
 
     }
 
@@ -752,57 +1531,28 @@ if (resultImage) {
 
 
 // ============================================================
-// RESULT PAGE - LOAD SAVED AI RESULT
+// RUN RESULT PAGE
 // ============================================================
 
-let analysisResult =
-    null;
+loadResultPage();
 
 
-try {
+// ============================================================
+// DASHBOARD DATA
+// ============================================================
 
-    analysisResult =
-        JSON.parse(
-            localStorage.getItem(
-                "analysisResult"
-            )
+function updateDashboard() {
+
+    const totalCropsElement =
+        document.getElementById(
+            "totalCrops"
         );
 
-} catch (error) {
 
-    console.warn(
-        "⚠️ Could not load saved analysis."
-    );
+    if (!totalCropsElement) {
+        return;
+    }
 
-}
-
-
-if (analysisResult) {
-
-    console.log(
-        "📊 Saved analysis:",
-        analysisResult
-    );
-
-}
-
-
-// ============================================================
-// DASHBOARD LIVE DATA
-// ============================================================
-
-const totalCropsElement =
-    document.getElementById(
-        "totalCrops"
-    );
-
-
-if (totalCropsElement) {
-
-
-    // ========================================================
-    // GET HISTORY
-    // ========================================================
 
     const history =
         safeGetJSON(
@@ -811,9 +1561,10 @@ if (totalCropsElement) {
         );
 
 
-    // ========================================================
-    // BASIC COUNTS
-    // ========================================================
+    if (!Array.isArray(history)) {
+        return;
+    }
+
 
     const totalScans =
         history.length;
@@ -823,29 +1574,21 @@ if (totalCropsElement) {
         new Set(
 
             history
+
                 .map(
                     scan =>
                         scan.crop
                 )
+
                 .filter(
                     crop =>
-
                         crop &&
-
                         crop !==
-                            "Unknown" &&
-
-                        crop !==
-                            "Unable to identify"
-
+                        "Unable to identify"
                 )
 
         ).size;
 
-
-    // ========================================================
-    // HEALTHY SCANS
-    // ========================================================
 
     const healthyScans =
         history.filter(
@@ -893,10 +1636,6 @@ if (totalCropsElement) {
         ).length;
 
 
-    // ========================================================
-    // HIGH RISK
-    // ========================================================
-
     const highRiskScans =
         history.filter(
             scan => {
@@ -910,23 +1649,15 @@ if (totalCropsElement) {
 
                 return (
 
-                    risk ===
-                    "high"
+                    risk === "high" ||
 
-                    ||
-
-                    risk ===
-                    "high risk"
+                    risk === "high risk"
 
                 );
 
             }
         ).length;
 
-
-    // ========================================================
-    // MODERATE RISK
-    // ========================================================
 
     const moderateScans =
         history.filter(
@@ -940,8 +1671,11 @@ if (totalCropsElement) {
 
 
                 return (
-                    risk ===
-                    "moderate"
+
+                    risk === "moderate" ||
+
+                    risk === "medium"
+
                 );
 
             }
@@ -949,14 +1683,8 @@ if (totalCropsElement) {
 
 
     // ========================================================
-    // UPDATE STAT CARDS
+    // STAT CARDS
     // ========================================================
-
-    const totalCrops =
-        document.getElementById(
-            "totalCrops"
-        );
-
 
     const totalScansElement =
         document.getElementById(
@@ -976,9 +1704,9 @@ if (totalCropsElement) {
         );
 
 
-    if (totalCrops) {
+    if (totalCropsElement) {
 
-        totalCrops.textContent =
+        totalCropsElement.textContent =
             uniqueCrops;
 
     }
@@ -1058,6 +1786,12 @@ if (totalCropsElement) {
     // HEALTHY PERCENTAGE
     // ========================================================
 
+    const healthyPercentageElement =
+        document.getElementById(
+            "healthyPercentage"
+        );
+
+
     let healthyPercentage =
         0;
 
@@ -1069,19 +1803,16 @@ if (totalCropsElement) {
                 (
                     healthyScans /
                     totalScans
-                ) * 100
+                ) *
+                100
             );
 
     }
 
 
-    const healthyPercentageElement =
-        document.getElementById(
-            "healthyPercentage"
-        );
-
-
-    if (healthyPercentageElement) {
+    if (
+        healthyPercentageElement
+    ) {
 
         healthyPercentageElement.textContent =
             healthyPercentage +
@@ -1100,344 +1831,211 @@ if (totalCropsElement) {
         );
 
 
-    if (recentContainer) {
+    if (!recentContainer) {
+        return;
+    }
 
-        recentContainer.innerHTML =
-            "";
+
+    recentContainer.innerHTML =
+        "";
 
 
-        const recentScans =
-            history
-                .slice()
-                .reverse()
-                .slice(
-                    0,
-                    3
+    const recentScans =
+        history
+            .slice()
+            .reverse()
+            .slice(
+                0,
+                3
+            );
+
+
+    if (
+        recentScans.length === 0
+    ) {
+
+        recentContainer.innerHTML = `
+
+            <p style="padding:20px 0;">
+                No scans yet.
+                Start your first crop scan! 🌱
+            </p>
+
+        `;
+
+        return;
+    }
+
+
+    recentScans.forEach(
+        scan => {
+
+            const cropEmoji =
+                getCropIcon(
+                    scan.crop
                 );
 
 
-        // ====================================================
-        // NO SCANS
-        // ====================================================
+            let statusClass =
+                "healthy-status";
 
-        if (
-            recentScans.length ===
-            0
-        ) {
 
-            recentContainer.innerHTML = `
+            let statusText =
+                "Healthy";
 
-                <p style="padding: 20px 0;">
 
-                    No scans yet.
-                    Start your first crop scan! 🌱
+            const risk =
+                String(
+                    scan.risk ||
+                    ""
+                ).toLowerCase();
 
-                </p>
+
+            const disease =
+                String(
+                    scan.disease ||
+                    ""
+                ).toLowerCase();
+
+
+            const status =
+                String(
+                    scan.status ||
+                    ""
+                ).toLowerCase();
+
+
+            if (
+
+                disease ===
+                "no disease detected"
+
+                ||
+
+                risk ===
+                "healthy"
+
+                ||
+
+                status ===
+                "healthy"
+
+            ) {
+
+                statusClass =
+                    "healthy-status";
+
+                statusText =
+                    "Healthy";
+
+            }
+
+            else if (
+
+                risk === "high" ||
+
+                risk === "high risk"
+
+            ) {
+
+                statusClass =
+                    "high-status";
+
+                statusText =
+                    "High Risk";
+
+            }
+
+            else if (
+
+                risk === "moderate" ||
+
+                risk === "medium"
+
+            ) {
+
+                statusClass =
+                    "moderate-status";
+
+                statusText =
+                    "Moderate";
+
+            }
+
+            else {
+
+                statusClass =
+                    "moderate-status";
+
+                statusText =
+                    "Uncertain";
+
+            }
+
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+
+            row.className =
+                "diagnosis-row";
+
+
+            row.innerHTML = `
+
+                <div class="crop-circle">
+                    ${cropEmoji}
+                </div>
+
+                <div class="diagnosis-info">
+
+                    <strong>
+                        ${
+                            scan.crop ||
+                            "Unknown Crop"
+                        }
+                    </strong>
+
+                    <span>
+                        ${
+                            scan.disease ||
+                            "Unknown Condition"
+                        }
+                    </span>
+
+                </div>
+
+                <div class="
+                    diagnosis-status
+                    ${statusClass}
+                ">
+                    ${statusText}
+                </div>
 
             `;
 
-        }
 
-
-        // ====================================================
-        // SHOW RECENT SCANS
-        // ====================================================
-
-        else {
-
-            recentScans.forEach(
-                scan => {
-
-
-                    // ========================================
-                    // CROP EMOJI
-                    // ========================================
-
-                    let cropEmoji =
-                        "🌱";
-
-
-                    const cropName =
-                        String(
-                            scan.crop ||
-                            ""
-                        ).toLowerCase();
-
-
-                    if (
-
-                        cropName.includes(
-                            "corn"
-                        )
-
-                        ||
-
-                        cropName.includes(
-                            "maize"
-                        )
-
-                    ) {
-
-                        cropEmoji =
-                            "🌽";
-
-                    }
-
-
-                    else if (
-
-                        cropName.includes(
-                            "tomato"
-                        )
-
-                    ) {
-
-                        cropEmoji =
-                            "🍅";
-
-                    }
-
-
-                    else if (
-
-                        cropName.includes(
-                            "rice"
-                        )
-
-                    ) {
-
-                        cropEmoji =
-                            "🌾";
-
-                    }
-
-
-                    else if (
-
-                        cropName.includes(
-                            "potato"
-                        )
-
-                    ) {
-
-                        cropEmoji =
-                            "🥔";
-
-                    }
-
-
-                    else if (
-
-                        cropName.includes(
-                            "peach"
-                        )
-
-                    ) {
-
-                        cropEmoji =
-                            "🍑";
-
-                    }
-
-
-                    // ========================================
-                    // STATUS
-                    // ========================================
-
-                    let statusClass =
-                        "healthy-status";
-
-
-                    let statusText =
-                        "Healthy";
-
-
-                    const risk =
-                        String(
-                            scan.risk ||
-                            ""
-                        ).toLowerCase();
-
-
-                    const disease =
-                        String(
-                            scan.disease ||
-                            ""
-                        ).toLowerCase();
-
-
-                    const status =
-                        String(
-                            scan.status ||
-                            ""
-                        ).toLowerCase();
-
-
-                    // ----------------------------------------
-                    // HEALTHY
-                    // ----------------------------------------
-
-                    if (
-
-                        disease ===
-                        "no disease detected"
-
-                        ||
-
-                        risk ===
-                        "healthy"
-
-                        ||
-
-                        status ===
-                        "healthy"
-
-                    ) {
-
-                        statusClass =
-                            "healthy-status";
-
-                        statusText =
-                            "Healthy";
-
-                    }
-
-
-                    // ----------------------------------------
-                    // HIGH RISK
-                    // ----------------------------------------
-
-                    else if (
-
-                        risk ===
-                        "high"
-
-                        ||
-
-                        risk ===
-                        "high risk"
-
-                    ) {
-
-                        statusClass =
-                            "high-status";
-
-                        statusText =
-                            "High Risk";
-
-                    }
-
-
-                    // ----------------------------------------
-                    // MODERATE
-                    // ----------------------------------------
-
-                    else if (
-
-                        risk ===
-                        "moderate"
-
-                    ) {
-
-                        statusClass =
-                            "moderate-status";
-
-                        statusText =
-                            "Moderate";
-
-                    }
-
-
-                    // ----------------------------------------
-                    // UNKNOWN / UNCERTAIN
-                    // ----------------------------------------
-
-                    else {
-
-                        statusClass =
-                            "moderate-status";
-
-                        statusText =
-                            "Uncertain";
-
-                    }
-
-
-                    // ========================================
-                    // CREATE ROW
-                    // ========================================
-
-                    const row =
-                        document.createElement(
-                            "div"
-                        );
-
-
-                    row.className =
-                        "diagnosis-row";
-
-
-                    row.innerHTML = `
-
-                        <div class="crop-circle">
-
-                            ${cropEmoji}
-
-                        </div>
-
-
-                        <div class="diagnosis-info">
-
-                            <strong>
-
-                                ${
-                                    scan.crop ||
-                                    "Unknown Crop"
-                                }
-
-                            </strong>
-
-
-                            <span>
-
-                                ${
-                                    scan.disease ||
-                                    "Unknown Condition"
-                                }
-
-                            </span>
-
-                        </div>
-
-
-                        <div class="
-                            diagnosis-status
-                            ${statusClass}
-                        ">
-
-                            ${statusText}
-
-                        </div>
-
-                    `;
-
-
-                    recentContainer.appendChild(
-                        row
-                    );
-
-                }
+            recentContainer.appendChild(
+                row
             );
 
         }
-
-    }
+    );
 
 }
 
 
 // ============================================================
-// DASHBOARD PAGE - LIVE DATA
+// UPDATE DASHBOARD
+// ============================================================
+
+updateDashboard();
+
+
+// ============================================================
+// DASHBOARD PAGE STAT CARDS
 // ============================================================
 
 const dashboardPage =
@@ -1448,7 +2046,6 @@ const dashboardPage =
 
 if (dashboardPage) {
 
-
     const history =
         safeGetJSON(
             "scanHistory",
@@ -1457,121 +2054,95 @@ if (dashboardPage) {
 
 
     const totalScans =
-        history.length;
+        Array.isArray(history)
+            ? history.length
+            : 0;
 
-
-    // ========================================================
-    // HEALTHY
-    // ========================================================
 
     const healthyScans =
-        history.filter(
-            item => {
+        Array.isArray(history)
+            ? history.filter(
+                scan => {
 
-                const disease =
-                    String(
-                        item.disease ||
-                        ""
-                    ).toLowerCase();
-
-
-                const risk =
-                    String(
-                        item.risk ||
-                        ""
-                    ).toLowerCase();
+                    const disease =
+                        String(
+                            scan.disease ||
+                            ""
+                        ).toLowerCase();
 
 
-                const status =
-                    String(
-                        item.status ||
-                        ""
-                    ).toLowerCase();
+                    const risk =
+                        String(
+                            scan.risk ||
+                            ""
+                        ).toLowerCase();
 
 
-                return (
+                    return (
 
-                    disease ===
-                    "no disease detected"
+                        disease ===
+                        "no disease detected"
 
-                    ||
+                        ||
 
-                    risk ===
-                    "healthy"
+                        risk ===
+                        "healthy"
 
-                    ||
+                    );
 
-                    status ===
-                    "healthy"
+                }
+            ).length
+            : 0;
 
-                );
-
-            }
-        ).length;
-
-
-    // ========================================================
-    // HIGH RISK
-    // ========================================================
 
     const highRiskScans =
-        history.filter(
-            item => {
+        Array.isArray(history)
+            ? history.filter(
+                scan => {
 
-                const risk =
-                    String(
-                        item.risk ||
-                        ""
-                    ).toLowerCase();
-
-
-                return (
-
-                    risk ===
-                    "high"
-
-                    ||
-
-                    risk ===
-                    "high risk"
-
-                );
-
-            }
-        ).length;
+                    const risk =
+                        String(
+                            scan.risk ||
+                            ""
+                        ).toLowerCase();
 
 
-    // ========================================================
-    // UNIQUE CROPS
-    // ========================================================
+                    return (
+
+                        risk === "high" ||
+
+                        risk === "high risk"
+
+                    );
+
+                }
+            ).length
+            : 0;
+
 
     const uniqueCrops =
         new Set(
 
-            history
-                .map(
-                    item =>
-                        item.crop
-                )
-                .filter(
-                    crop =>
+            Array.isArray(history)
 
-                        crop &&
+                ? history
 
-                        crop !==
-                            "Unknown" &&
+                    .map(
+                        scan =>
+                            scan.crop
+                    )
 
-                        crop !==
+                    .filter(
+                        crop =>
+                            crop &&
+                            crop !==
                             "Unable to identify"
+                    )
 
-                )
+                : []
 
         ).size;
 
-
-    // ========================================================
-    // UPDATE STAT CARDS
-    // ========================================================
 
     const statCards =
         document.querySelectorAll(
@@ -1583,80 +2154,47 @@ if (dashboardPage) {
         statCards.length >= 4
     ) {
 
-
-        // -----------------------------------------------
-        // TOTAL SCANS
-        // -----------------------------------------------
-
         const card1 =
             statCards[0]
-                .querySelector(
-                    "h2"
-                );
+                .querySelector("h2");
 
-
-        if (card1) {
-
-            card1.textContent =
-                totalScans;
-
-        }
-
-
-        // -----------------------------------------------
-        // UNIQUE CROPS
-        // -----------------------------------------------
 
         const card2 =
             statCards[1]
-                .querySelector(
-                    "h2"
-                );
+                .querySelector("h2");
 
-
-        if (card2) {
-
-            card2.textContent =
-                uniqueCrops;
-
-        }
-
-
-        // -----------------------------------------------
-        // HIGH RISK
-        // -----------------------------------------------
 
         const card3 =
             statCards[2]
-                .querySelector(
-                    "h2"
-                );
+                .querySelector("h2");
 
-
-        if (card3) {
-
-            card3.textContent =
-                highRiskScans;
-
-        }
-
-
-        // -----------------------------------------------
-        // HEALTHY
-        // -----------------------------------------------
 
         const card4 =
             statCards[3]
-                .querySelector(
-                    "h2"
-                );
+                .querySelector("h2");
+
+
+        if (card1) {
+            card1.textContent =
+                totalScans;
+        }
+
+
+        if (card2) {
+            card2.textContent =
+                uniqueCrops;
+        }
+
+
+        if (card3) {
+            card3.textContent =
+                highRiskScans;
+        }
 
 
         if (card4) {
-
             card4.textContent =
                 healthyScans;
-
         }
 
     }
@@ -1665,9 +2203,13 @@ if (dashboardPage) {
 
 
 // ============================================================
-// PAGE LOAD DEBUG
+// DEBUG
 // ============================================================
 
 console.log(
     "🌱 CropGuard script.js loaded successfully!"
+);
+
+console.log(
+    "🖼️ Images are stored separately per scan in IndexedDB."
 );

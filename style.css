@@ -1600,3 +1600,50 @@ footer p {
     }
 
 }
+.navigation-buttons {
+    display: flex;
+    gap: 18px;
+    justify-content: center;
+    margin-top: 35px;
+}
+
+.nav-button {
+    padding: 16px 28px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-size: 17px;
+    font-weight: bold;
+    text-align: center;
+    transition: 0.2s ease;
+}
+
+.nav-button.primary {
+    background: #2d8748;
+    color: white;
+}
+
+.nav-button.primary:hover {
+    background: #246f3b;
+}
+
+.nav-button.secondary {
+    background: white;
+    color: #2d8748;
+    border: 2px solid #2d8748;
+}
+
+.nav-button.secondary:hover {
+    background: #edf7e9;
+}
+
+@media (max-width: 600px) {
+
+    .navigation-buttons {
+        flex-direction: column;
+    }
+
+    .nav-button {
+        width: auto;
+    }
+
+}
