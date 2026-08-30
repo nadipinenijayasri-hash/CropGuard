@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Crop Health Analysis - CropGuard</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5faf4;
+            color: #123b20;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+            padding: 50px 30px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 52px;
+            margin-bottom: 10px;
+        }
+
+        .green {
+            color: #2d8748;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 21px;
+            color: #527064;
+            margin-bottom: 50px;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 22px;
+            padding: 32px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+        }
+
+        .card h2 {
+            margin-top: 0;
+        }
+
+        #cropImage {
+            width: 100%;
+            max-height: 450px;
+            object-fit: cover;
+            border-radius: 16px;
+        }
+
+        .label {
+            color: #638075;
+            font-size: 17px;
+            margin-top: 20px;
+        }
+
+        .value {
+            font-size: 28px;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+
+        .confidence {
+            margin-top: 25px;
+        }
+
+        .bar {
+            height: 12px;
+            background: #e1e9e3;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        #confidenceBar {
+            height: 100%;
+            background: #2d8748;
+            width: 0%;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .info-box {
+            background: #f5faf4;
+            padding: 20px;
+            border-radius: 15px;
+        }
+
+        .warning {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 15px;
+            background: #edf7e9;
+            color: #315c3d;
+        }
+
+        .button {
+            display: block;
+            margin-top: 30px;
+            padding: 17px;
+            text-align: center;
+            background: #2d8748;
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-size: 18px;
+        }
+
+        @media (max-width: 800px) {
+            .result-grid {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 38px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>
+            Crop Health <span class="green">Analysis</span>
+        </h1>
+
+        <p class="subtitle">
+            Here's what CropGuard detected from your crop image.
+        </p>
+
+
+        <div class="result-grid">
+
+            <!-- IMAGE -->
+            <div class="card">
+
+                <h2>📸 Scanned Image</h2>
+
+                <img id="cropImage" src="" alt="Scanned crop">
+
+                <div class="label">🌱 Crop</div>
+
+                <div class="value" id="cropName">
+                    -
+                </div>
+
+            </div>
+
+
+            <!-- RESULT -->
+            <div class="card">
+
+                <h2>✓ Analysis Complete</h2>
+
+                <div class="label">Detected Condition</div>
+
+                <div class="value" id="diseaseName">
+                    -
+                </div>
+
+
+                <div class="confidence">
+
+                    <div class="label">
+                        AI Confidence
+                    </div>
+
+                    <div class="value">
+                        <span id="confidenceText">0</span>%
+                    </div>
+
+                    <div class="bar">
+                        <div id="confidenceBar"></div>
+                    </div>
+
+                </div>
+
+
+                <div class="info-grid">
+
+                    <div class="info-box">
+
+                        <div class="label">
+                            ⚠️ Severity
+                        </div>
+
+                        <div class="value" id="severity">
+                            -
+                        </div>
+
+                    </div>
+
+
+                    <div class="info-box">
+
+                        <div class="label">
+                            📊 Risk Level
+                        </div>
+
+                        <div class="value" id="risk">
+                            -
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <a href="management.html" class="button">
+                    🌱 View Management Plan →
+                </a>
+
+            </div>
+
+        </div>
+
+
+        <div class="warning">
+
+            💡 <strong>Important:</strong>
+
+            AI results are advisory. If confidence is low
+            or symptoms are unclear, verify the diagnosis
+            with an agricultural expert.
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+        // Get the real AI response saved by script.js
+        const savedResult = localStorage.getItem("analysisResult");
+
+        // Get the uploaded image
+        const savedImage = localStorage.getItem("cropImage");
+
+
+        if (savedImage) {
+            document.getElementById("cropImage").src = savedImage;
+        }
+
+
+        if (savedResult) {
+
+            const data = JSON.parse(savedResult);
+
+
+            // Handle uncertain prediction
+            if (data.status === "uncertain") {
+
+                document.getElementById("cropName").textContent =
+                    "Unable to identify";
+
+                document.getElementById("diseaseName").textContent =
+                    "Uncertain result";
+
+                document.getElementById("confidenceText").textContent =
+                    data.confidence;
+
+                document.getElementById("confidenceBar").style.width =
+                    data.confidence + "%";
+
+                document.getElementById("severity").textContent =
+                    "Unknown";
+
+                document.getElementById("risk").textContent =
+                    "Unknown";
+
+            }
+
+
+            // Handle successful prediction
+            else if (data.status === "success") {
+
+                document.getElementById("cropName").textContent =
+                    data.crop;
+
+                document.getElementById("diseaseName").textContent =
+                    data.disease;
+
+                document.getElementById("confidenceText").textContent =
+                    data.confidence;
+
+                document.getElementById("confidenceBar").style.width =
+                    data.confidence + "%";
+
+                document.getElementById("severity").textContent =
+                    data.severity;
+
+                document.getElementById("risk").textContent =
+                    data.risk;
+
+            }
+
+        }
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CropGuard | Management Plan</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+
+<body>
+
+
+    <!-- =========================
+         NAVBAR
+    ========================== -->
+
+    <nav class="navbar">
+
+        <div class="logo">
+            🌱 <span>CropGuard</span>
+        </div>
+
+
+        <div class="nav-links">
+
+            <a href="dashboard.html">
+                Dashboard
+            </a>
+
+            <a href="history.html">
+                History
+            </a>
+
+            <a href="scan.html">
+                New Scan
+            </a>
+
+            <button class="nav-btn">
+                Farmer
+            </button>
+
+        </div>
+
+    </nav>
+
+
+
+    <!-- =========================
+         MANAGEMENT PAGE
+    ========================== -->
+
+    <main class="management-page">
+
+
+        <!-- HEADER -->
+
+        <div class="management-header">
+
+            <div class="badge">
+                🌱 Management Guidance
+            </div>
+
+
+            <h1>
+                Your Crop <span>Management Plan</span>
+            </h1>
+
+
+            <p>
+                Recommended actions based on the detected
+                crop-health condition.
+            </p>
+
+        </div>
+
+
+
+        <!-- =========================
+             DISEASE SUMMARY
+        ========================== -->
+
+        <div class="disease-summary">
+
+
+            <div>
+
+                <small>
+                    Detected Condition
+                </small>
+
+
+                <h2 id="diseaseName">
+                    Loading...
+                </h2>
+
+            </div>
+
+
+
+            <div class="severity-summary">
+
+                <span>
+                    Severity
+                </span>
+
+
+                <strong id="severity">
+                    Loading...
+                </strong>
+
+            </div>
+
+
+        </div>
+
+
+
+        <!-- =========================
+             MANAGEMENT CARDS
+        ========================== -->
+
+        <div class="management-grid">
+
+
+            <!-- IMMEDIATE ACTIONS -->
+
+            <div class="management-card">
+
+                <div class="management-icon">
+                    🚨
+                </div>
+
+
+                <h3>
+                    Immediate Actions
+                </h3>
+
+
+                <ul id="immediateActions">
+
+                    <li>
+                        Loading recommendations...
+                    </li>
+
+                </ul>
+
+            </div>
+
+
+
+            <!-- CROP MANAGEMENT -->
+
+            <div class="management-card">
+
+                <div class="management-icon">
+                    🌱
+                </div>
+
+
+                <h3>
+                    Crop Management
+                </h3>
+
+
+                <ul id="cropManagement">
+
+                    <li>
+                        Loading recommendations...
+                    </li>
+
+                </ul>
+
+            </div>
+
+
+
+            <!-- MONITORING -->
+
+            <div class="management-card">
+
+                <div class="management-icon">
+                    👀
+                </div>
+
+
+                <h3>
+                    Monitoring
+                </h3>
+
+
+                <ul id="monitoring">
+
+                    <li>
+                        Loading recommendations...
+                    </li>
+
+                </ul>
+
+            </div>
+
+
+
+            <!-- PREVENTION -->
+
+            <div class="management-card">
+
+                <div class="management-icon">
+                    🛡️
+                </div>
+
+
+                <h3>
+                    Prevention
+                </h3>
+
+
+                <ul id="prevention">
+
+                    <li>
+                        Loading recommendations...
+                    </li>
+
+                </ul>
+
+            </div>
+
+
+        </div>
+
+
+
+        <!-- =========================
+             SAFETY NOTICE
+        ========================== -->
+
+        <div class="management-notice">
+
+            💡
+
+            <strong>
+                Farmer Safety Notice:
+            </strong>
+
+            These recommendations are general guidance.
+            For severe or uncertain cases, consult a qualified
+            agricultural expert before taking treatment decisions.
+
+        </div>
+
+
+
+        <!-- =========================
+             ACTION BUTTONS
+        ========================== -->
+
+        <div class="management-actions">
+
+
+            <button
+                class="secondary-btn"
+                onclick="window.location.href='result.html'">
+
+                ← Back to Results
+
+            </button>
+
+
+
+            <button
+                class="primary-btn"
+                onclick="window.location.href='scan.html'">
+
+                📸 Start New Scan →
+
+            </button>
+
+
+        </div>
+
+
+    </main>
+
+
+
+    <!-- =========================
+         MANAGEMENT LOGIC
+    ========================== -->
+
+    <script>
+
+
+        // =====================================
+        // GET SAVED AI RESULT
+        // =====================================
+
+        const savedResult =
+            localStorage.getItem("analysisResult");
+
+
+
+        // =====================================
+        // MANAGEMENT PLANS
+        // =====================================
+
+        const managementPlans = {
+
+
+            "Common Rust": {
+
+                immediate: [
+
+                    "Inspect affected maize plants carefully.",
+
+                    "Remove severely affected leaves when practical.",
+
+                    "Keep heavily infected plant material away from healthy plants."
+
+                ],
+
+
+                management: [
+
+                    "Maintain good field hygiene.",
+
+                    "Avoid unnecessary plant stress.",
+
+                    "Follow suitable maize crop-management practices."
+
+                ],
+
+
+                monitoring: [
+
+                    "Check plants regularly for new rust spots.",
+
+                    "Watch whether lesions are increasing.",
+
+                    "Monitor nearby maize plants for similar symptoms."
+
+                ],
+
+
+                prevention: [
+
+                    "Remove crop debris appropriately.",
+
+                    "Maintain good field conditions.",
+
+                    "Use suitable resistant varieties when available."
+
+                ]
+
+            },
+
+
+
+            "Northern Leaf Blight": {
+
+                immediate: [
+
+                    "Inspect affected maize leaves.",
+
+                    "Remove severely affected plant material when practical.",
+
+                    "Separate heavily affected material from healthy crops."
+
+                ],
+
+
+                management: [
+
+                    "Maintain proper field hygiene.",
+
+                    "Avoid unnecessary plant injury.",
+
+                    "Follow recommended maize management practices."
+
+                ],
+
+
+                monitoring: [
+
+                    "Check nearby plants regularly.",
+
+                    "Watch for enlargement of leaf lesions.",
+
+                    "Monitor whether the disease is spreading."
+
+                ],
+
+
+                prevention: [
+
+                    "Remove crop debris appropriately.",
+
+                    "Maintain healthy field conditions.",
+
+                    "Use suitable disease-resistant varieties when available."
+
+                ]
+
+            },
+
+
+
+            "Cercospora and Gray Leaf Spot": {
+
+                immediate: [
+
+                    "Inspect affected maize leaves.",
+
+                    "Remove severely affected plant material when practical.",
+
+                    "Keep infected material away from healthy plants."
+
+                ],
+
+
+                management: [
+
+                    "Maintain good field hygiene.",
+
+                    "Avoid unnecessary crop stress.",
+
+                    "Follow recommended maize crop-management practices."
+
+                ],
+
+
+                monitoring: [
+
+                    "Recheck affected plants regularly.",
+
+                    "Watch for new leaf spots.",
+
+                    "Monitor nearby plants for similar symptoms."
+
+                ],
+
+
+                prevention: [
+
+                    "Manage crop residue appropriately.",
+
+                    "Maintain healthy field conditions.",
+
+                    "Use suitable resistant varieties when available."
+
+                ]
+
+            },
+
+
+
+            "Healthy Corn (Maize) Plant": {
+
+                immediate: [
+
+                    "No disease-specific action is required.",
+
+                    "Continue normal crop care.",
+
+                    "Maintain good field hygiene."
+
+                ],
+
+
+                management: [
+
+                    "Provide appropriate water and nutrients.",
+
+                    "Maintain healthy growing conditions.",
+
+                    "Follow recommended maize cultivation practices."
+
+                ],
+
+
+                monitoring: [
+
+                    "Continue checking plants regularly.",
+
+                    "Watch for unusual spots or discoloration.",
+
+                    "Monitor overall crop growth."
+
+                ],
+
+
+                prevention: [
+
+                    "Maintain field hygiene.",
+
+                    "Remove unhealthy plant debris appropriately.",
+
+                    "Continue regular crop monitoring."
+
+                ]
+
+            }
+
+        };
+
+
+
+        // =====================================
+        // DEFAULT PLAN
+        // Used for unknown / uncertain results
+        // =====================================
+
+        const defaultPlan = {
+
+            immediate: [
+
+                "Inspect the affected plant carefully.",
+
+                "Avoid spreading potentially infected plant material.",
+
+                "Keep affected material away from healthy plants."
+
+            ],
+
+
+            management: [
+
+                "Maintain good field hygiene.",
+
+                "Avoid unnecessary plant injury or stress.",
+
+                "Follow suitable crop-management practices."
+
+            ],
+
+
+            monitoring: [
+
+                "Recheck the affected plant regularly.",
+
+                "Watch for new or changing symptoms.",
+
+                "Monitor nearby plants for similar symptoms."
+
+            ],
+
+
+            prevention: [
+
+                "Remove crop debris appropriately.",
+
+                "Maintain healthy field conditions.",
+
+                "Continue regular crop monitoring."
+
+            ]
+
+        };
+
+
+
+        // =====================================
+        // FILL LIST
+        // =====================================
+
+        function fillList(elementId, items) {
+
+
+            const list =
+                document.getElementById(elementId);
+
+
+            list.innerHTML = "";
+
+
+            items.forEach(function(item) {
+
+
+                const li =
+                    document.createElement("li");
+
+
+                li.textContent = item;
+
+
+                list.appendChild(li);
+
+
+            });
+
+        }
+
+
+
+        // =====================================
+        // LOAD RESULT
+        // =====================================
+
+        if (savedResult) {
+
+
+            try {
+
+
+                const data =
+                    JSON.parse(savedResult);
+
+
+
+                // =================================
+                // SUCCESS RESULT
+                // =================================
+
+                if (data.status === "success") {
+
+
+                    // Disease
+
+                    const disease =
+                        data.disease || "Unknown condition";
+
+
+                    document.getElementById(
+                        "diseaseName"
+                    ).textContent = disease;
+
+
+
+                    // Severity
+
+                    document.getElementById(
+                        "severity"
+                    ).textContent =
+                        "⚠️ " +
+                        (data.severity || "Unknown");
+
+
+
+                    // Find disease plan
+
+                    let diseaseKey =
+                        disease
+                            .replace("Corn (Maize) with ", "")
+                            .replace(" with ", " ");
+
+
+
+                    let plan =
+                        managementPlans[diseaseKey]
+                        || managementPlans[disease]
+                        || defaultPlan;
+
+
+
+                    // Fill cards
+
+                    fillList(
+                        "immediateActions",
+                        [
+                            "No immediate treatment is recommended.",
+                            "Continue normal maize crop care.",
+                            "Avoid removing healthy plant parts unnecessarily."
+                        ]
+                    );
+
+                    fillList(
+                        "cropManagement",
+                        [
+                            "Maintain good field hygiene.",
+                            "Provide appropriate water and nutrients.",
+                            "Avoid unnecessary plant stress."
+                        ]
+                    );
+
+                    fillList(
+                        "monitoring",
+                        [
+                            "Continue checking the plant regularly.",
+                            "Watch for unusual spots or discoloration.",
+                            "Monitor nearby plants for similar symptoms."
+                        ]
+                    );
+
+                    fillList(
+                        "prevention",
+                        [
+                            "Maintain healthy field conditions.",
+                            "Keep the field clean and well maintained.",
+                            "Use good crop-management practices."
+                        ]
+                    );
+
+                }
+
+
+                // =================================
+                // UNCERTAIN RESULT
+                // =================================
+
+                else if (data.status === "uncertain") {
+
+                    document.getElementById("diseaseName").textContent =
+                        "Unable to identify";
+
+                    document.getElementById("severity").textContent =
+                        "⚠️ Unknown";
+
+
+                    fillList(
+                        "immediateActions",
+                        [
+                            "No immediate treatment is recommended.",
+                            "Continue normal maize crop care.",
+                            "Avoid removing healthy plant parts unnecessarily."
+                        ]
+                    );
+
+
+                    fillList(
+                        "cropManagement",
+                        [
+                            "Maintain good field hygiene.",
+                            "Provide appropriate water and nutrients.",
+                            "Avoid unnecessary plant stress."
+                        ]
+                    );
+
+
+                    fillList(
+                        "monitoring",
+                        [
+                            "Continue checking the plant regularly.",
+                            "Watch for unusual spots or discoloration.",
+                            "Monitor nearby plants for similar symptoms."
+                        ]
+                    );
+
+
+                    fillList(
+                        "prevention",
+                        [
+                            "Maintain healthy field conditions.",
+                            "Keep the field clean and well maintained.",
+                            "Use good crop-management practices."
+                        ]
+                    );
+
+                }
+
+
+
+                // =================================
+                // UNKNOWN / OTHER RESULT
+                // =================================
+
+                else {
+
+
+                    document.getElementById(
+                        "diseaseName"
+                    ).textContent =
+                        data.disease || "Unknown condition";
+
+
+                    document.getElementById(
+                        "severity"
+                    ).textContent =
+                        "⚠️ Unknown";
+
+
+                    fillList(
+                        "immediateActions",
+                        defaultPlan.immediate
+                    );
+
+
+                    fillList(
+                        "cropManagement",
+                        defaultPlan.management
+                    );
+
+
+                    fillList(
+                        "monitoring",
+                        defaultPlan.monitoring
+                    );
+
+
+                    fillList(
+                        "prevention",
+                        defaultPlan.prevention
+                    );
+
+                }
+
+
+            }
+
+
+            catch (error) {
+
+
+                console.error(
+                    "Management page error:",
+                    error
+                );
+
+
+                document.getElementById(
+                    "diseaseName"
+                ).textContent =
+                    "Unable to load result";
+
+
+                document.getElementById(
+                    "severity"
+                ).textContent =
+                    "⚠️ Unknown";
+
+
+                fillList(
+                    "immediateActions",
+                    defaultPlan.immediate
+                );
+
+
+                fillList(
+                    "cropManagement",
+                    defaultPlan.management
+                );
+
+
+                fillList(
+                    "monitoring",
+                    defaultPlan.monitoring
+                );
+
+
+                fillList(
+                    "prevention",
+                    defaultPlan.prevention
+                );
+
+            }
+
+
+        }
+
+
+        // =====================================
+        // NO RESULT
+        // =====================================
+
+        else {
+
+
+            document.getElementById(
+                "diseaseName"
+            ).textContent =
+                "No scan available";
+
+
+            document.getElementById(
+                "severity"
+            ).textContent =
+                "Unknown";
+
+
+            fillList(
+                "immediateActions",
+                defaultPlan.immediate
+            );
+
+
+            fillList(
+                "cropManagement",
+                defaultPlan.management
+            );
+
+
+            fillList(
+                "monitoring",
+                defaultPlan.monitoring
+            );
+
+
+            fillList(
+                "prevention",
+                defaultPlan.prevention
+            );
+
+        }
+
+
+    </script>
+
+
+</body>
+
+</html>

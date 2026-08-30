@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CropGuard | History</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+
+    <nav class="navbar">
+
+        <div class="logo">
+            🌱 <span>CropGuard</span>
+        </div>
+
+        <div class="nav-links">
+
+            <a href="dashboard.html">Dashboard</a>
+            <a href="scan.html">New Scan</a>
+
+            <button class="nav-btn">
+                Farmer
+            </button>
+
+        </div>
+
+    </nav>
+
+
+    <!-- HISTORY PAGE -->
+
+    <main class="history-page">
+
+        <div class="history-header">
+
+            <div class="badge">
+                📊 Crop Health History
+            </div>
+
+            <h1>
+                Your <span>Scan History</span>
+            </h1>
+
+            <p>
+                Review previous crop-health scans and detected conditions.
+            </p>
+
+        </div>
+
+
+        <!-- SUMMARY -->
+
+        <div class="history-summary">
+
+            <div>
+                <small>Total Scans</small>
+                <strong id="totalScans">00</strong>
+            </div>
+
+            <div>
+                <small>Healthy</small>
+                <strong class="history-green" id="healthyScans">00</strong>
+            </div>
+
+            <div>
+                <small>Needs Attention</small>
+                <strong class="history-orange" id="attentionScans">00</strong>
+            </div>
+
+        </div>
+
+
+        <!-- HISTORY LIST -->
+
+        <section
+            class="history-list"
+            id="historyList">
+
+        </section>
+
+
+        <!-- NOTICE -->
+
+        <div class="history-notice">
+
+            💡 <strong>Live History:</strong>
+            Your completed CropGuard AI scans are stored in this browser
+            for this prototype.
+
+        </div>
+
+
+        <!-- BUTTON -->
+
+        <div class="history-action">
+
+            <button
+                class="primary-btn"
+                onclick="window.location.href='scan.html'">
+
+                📸 Start New Scan →
+
+            </button>
+
+        </div>
+
+    </main>
+
+
+    <!-- HISTORY JAVASCRIPT -->
+
+    <script>
+
+        // GET SAVED SCANS
+
+        const history =
+            JSON.parse(
+                localStorage.getItem("scanHistory")
+            ) || [];
+
+        // =========================
+        // SUMMARY COUNTS
+        // =========================
+
+        const totalScans =
+            history.length;
+
+
+        const healthyScans =
+            history.filter(
+                item => item.risk === "Healthy"
+            ).length;
+
+
+        const attentionScans =
+            totalScans - healthyScans;
+
+
+        document.getElementById("totalScans")
+            .textContent =
+            String(totalScans).padStart(2, "0");
+
+
+        document.getElementById("healthyScans")
+            .textContent =
+            String(healthyScans).padStart(2, "0");
+
+
+        document.getElementById("attentionScans")
+            .textContent =
+            String(attentionScans).padStart(2, "0");
+
+
+        // =========================
+        // HISTORY CONTAINER
+        // =========================
+
+        const historyList =
+            document.getElementById("historyList");
+
+
+        // =========================
+        // NO HISTORY
+        // =========================
+
+        if (history.length === 0) {
+
+            historyList.innerHTML = `
+
+                <div class="history-card">
+
+                    <div class="history-info">
+
+                        <h3>No scans yet</h3>
+
+                        <p>
+                            Start your first crop scan to see
+                            your results here.
+                        </p>
+
+                    </div>
+
+                </div>
+
+            `;
+
+        }
+
+
+        // =========================
+        // DISPLAY HISTORY
+        // =========================
+
+        history
+            .slice()
+            .reverse()
+            .forEach(function (item) {
+
+                const card =
+                    document.createElement("div");
+
+                card.className =
+                    "history-card";
+
+
+                // Crop name
+
+                let cropName =
+                    item.crop || "Unknown Crop";
+
+
+                // Disease name
+
+                let diseaseName =
+                    item.disease || "Unknown";
+
+
+                // Remove model prefix
+
+                diseaseName =
+                    diseaseName
+                        .replace(
+                            "Corn (Maize) with ",
+                            ""
+                        )
+                        .replace(
+                            "Healthy Corn (Maize) Plant",
+                            "Healthy"
+                        );
+
+
+                // Risk styling
+
+                let resultClass =
+                    "moderate-result";
+
+                let riskIcon =
+                    "⚠️";
+
+                let riskText =
+                    item.risk || "Moderate";
+
+
+                if (
+                    riskText.toLowerCase()
+                        .includes("high")
+                ) {
+
+                    resultClass =
+                        "high-result";
+
+                    riskIcon =
+                        "🔴";
+
+                }
+                else if (
+                    riskText.toLowerCase()
+                        .includes("healthy")
+                ) {
+
+                    resultClass =
+                        "healthy-result";
+
+                    riskIcon =
+                        "✓";
+
+                }
+
+
+                // Crop icon
+
+                let cropIcon =
+                    item.cropIcon || "🌱";
+
+
+                // Create card
+
+                card.innerHTML = `
+
+                    <div class="history-crop">
+                        ${cropIcon}
+                    </div>
+
+                    <div class="history-info">
+
+                        <h3>
+                            ${cropName}
+                        </h3>
+
+                        <p>
+                            ${diseaseName}
+                        </p>
+
+                        <small>
+                            Scanned: ${item.date || "Unknown date"}
+                        </small>
+
+                    </div>
+
+                    <div class="history-result ${resultClass}">
+
+                        <span>
+                            ${riskIcon}
+                        </span>
+
+                        <strong>
+                            ${riskText}
+                        </strong>
+
+                    </div>
+
+                    <button
+                        class="history-view-btn"
+                        onclick="viewScan(${item.id})">
+
+                        View Details →
+
+                    </button>
+
+                `;
+
+
+                historyList.appendChild(card);
+
+            });
+
+
+        // =========================
+        // VIEW SCAN DETAILS
+        // =========================
+
+        function viewScan(id) {
+
+            const scan =
+                history.find(
+                    item => item.id === id
+                );
+
+
+            if (!scan) {
+
+                alert("Scan details not found.");
+
+                return;
+
+            }
+
+
+            // Restore selected scan
+
+            localStorage.setItem(
+                "analysisResult",
+                JSON.stringify({
+
+                    success: true,
+
+                    status: "success",
+
+                    crop: scan.crop,
+
+                    disease: scan.disease,
+
+                    confidence: scan.confidence,
+
+                    severity: scan.severity,
+
+                    risk: scan.risk
+
+                })
+            );
+
+
+            // Restore image
+
+            if (scan.image) {
+
+                localStorage.setItem(
+                    "cropImage",
+                    scan.image
+                );
+
+            }
+
+
+            // Open result page
+
+            window.location.href =
+                "result.html";
+
+        }
+
+    </script>
+
+</body>
+
+</html>

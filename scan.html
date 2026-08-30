@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CropGuard | Scan Crop</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+
+    <nav class="navbar">
+
+        <div class="logo">
+            🌱 <span>CropGuard</span>
+        </div>
+
+        <div class="nav-links">
+
+            <a href="dashboard.html">Dashboard</a>
+            <a href="#">History</a>
+
+            <button class="nav-btn">
+                Farmer
+            </button>
+
+        </div>
+
+    </nav>
+
+
+    <!-- SCAN SECTION -->
+
+    <main class="scan-page">
+
+        <div class="scan-header">
+
+            <div class="badge">
+                📸 Crop Scanner
+            </div>
+
+            <h1>
+                Check Your <span>Crop Health</span>
+            </h1>
+
+            <p>
+                Upload a clear image of your crop leaf
+                and let CropGuard analyze it.
+            </p>
+
+        </div>
+
+
+        <!-- UPLOAD BOX -->
+
+        <div class="upload-container">
+
+            <div class="upload-box" id="uploadBox">
+
+                <div class="upload-icon">
+                    📷
+                </div>
+
+                <h2>
+                    Upload Crop Image
+                </h2>
+
+                <p>
+                    Drag & drop your image here
+                    or choose a file
+                </p>
+
+                <label for="imageInput" class="upload-btn">
+                    Choose Image
+                </label>
+
+                <input
+                    type="file"
+                    id="imageInput"
+                    accept="image/*"
+                    hidden
+                >
+
+                <small>
+                    Supported: JPG, JPEG, PNG
+                </small>
+
+            </div>
+
+
+            <!-- IMAGE PREVIEW -->
+
+            <div class="preview-box" id="previewBox">
+
+                <h3>Image Preview</h3>
+
+                <img id="previewImage" src="" alt="Crop Preview">
+
+                <button
+                    class="primary-btn analyze-btn"
+                    onclick="analyzeCrop()">
+
+                    🤖 Analyze Crop →
+
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <div class="scan-tip">
+
+            💡 <strong>Tip:</strong>
+            Take a clear photo of the affected leaf
+            in good lighting for better analysis.
+
+        </div>
+
+    </main>
+
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>

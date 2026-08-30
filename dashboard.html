@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CropGuard | Dashboard</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+
+    <nav class="navbar">
+
+        <div class="logo">
+            🌱 <span>CropGuard</span>
+        </div>
+
+        <div class="nav-links">
+
+            <a href="dashboard.html">Dashboard</a>
+            <a href="history.html">History</a>
+
+            <button class="nav-btn">
+                Farmer
+            </button>
+
+        </div>
+
+    </nav>
+
+
+    <!-- DASHBOARD -->
+
+    <main class="dashboard-page">
+
+        <div class="dashboard-header">
+
+            <div>
+                <div class="badge">
+                    🌾 Farmer Dashboard
+                </div>
+
+                <h1>
+                    Good morning, <span>Farmer!</span> 👋
+                </h1>
+
+                <p>
+                    Keep an eye on your crops and detect problems early.
+                </p>
+            </div>
+
+            <button
+                class="primary-btn dashboard-scan-btn"
+                onclick="window.location.href='scan.html'">
+
+                📸 Scan Your Crop →
+
+            </button>
+
+        </div>
+
+
+        <!-- STAT CARDS -->
+
+        <div class="stats-grid">
+
+            <div class="stat-card">
+
+                <div class="stat-icon">
+                    🌾
+                </div>
+
+                <div>
+                    <small>Total Crops</small>
+                    <h2 id="totalCrops">0</h2>
+                </div>
+
+            </div>
+
+
+            <div class="stat-card">
+
+                <div class="stat-icon">
+                    🔍
+                </div>
+
+                <div>
+                    <small>Total Scans</small>
+                    <h2 id="totalScans">0</h2>
+                </div>
+
+            </div>
+
+
+            <div class="stat-card">
+
+                <div class="stat-icon">
+                    ⚠️
+                </div>
+
+                <div>
+                    <small>High Risk</small>
+                    <h2 id="highRisk">0</h2>
+                </div>
+
+            </div>
+
+
+            <div class="stat-card">
+
+                <div class="stat-icon">
+                    ❤️
+                </div>
+
+                <div>
+                    <small>Healthy</small>
+                    <h2 id="healthyCount">0</h2>
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- MAIN DASHBOARD GRID -->
+
+        <div class="dashboard-grid">
+
+
+            <!-- RECENT DIAGNOSES -->
+
+            <section class="dashboard-card" id="recent">
+
+            <div class="card-heading">
+
+                <div>
+                    <h2>Recent Diagnoses</h2>
+                    <p>Your latest crop health scans</p>
+                </div>
+
+                <a href="history.html">
+                    View All
+                </a>
+
+                </div>
+
+            <div id="recentDiagnoses">
+
+            <!-- Recent scans will appear here -->
+
+            </div>
+
+            </section>
+
+
+            <!-- RISK CARD -->
+
+            <section class="dashboard-card risk-card">
+
+                <div class="card-heading">
+
+                    <div>
+                        <h2>Crop Risk Overview</h2>
+                        <p>Current health status</p>
+                    </div>
+
+                </div>
+
+
+                <div class="risk-score">
+
+                    <div class="risk-circle">
+                        <strong id="healthyPercentage">0%</strong>
+                        <small>Healthy</small>
+                    </div>
+
+                </div>
+
+
+                <div class="risk-legend">
+
+                    <div>
+                        <span class="dot healthy-dot"></span>
+                        Healthy
+                        <strong id="riskHealthy">0</strong>
+                    </div>
+
+                    <div>
+                        <span class="dot moderate-dot"></span>
+                        Moderate
+                        <strong id="riskModerate">0</strong>
+                    </div>
+
+                    <div>
+                        <span class="dot high-dot"></span>
+                        High Risk
+                        <strong id="riskHigh">0</strong>
+                    </div>
+
+                </div>
+
+            </section>
+
+        </div>
+
+
+        <!-- QUICK ACTIONS -->
+
+        <section class="dashboard-card quick-actions">
+
+            <div class="card-heading">
+
+                <div>
+                    <h2>Quick Actions</h2>
+                    <p>Manage your crop health</p>
+                </div>
+
+            </div>
+
+
+            <div class="quick-grid">
+
+                <button
+                    onclick="window.location.href='scan.html'">
+
+                    <span>📸</span>
+
+                    <strong>New Crop Scan</strong>
+
+                    <small>Check crop health</small>
+
+                </button>
+
+
+                <button onclick="window.location.href='history.html'">
+
+                    <span>📊</span>
+
+                    <strong>View History</strong>
+
+                    <small>See previous scans</small>
+
+                </button>
+
+
+                <button>
+
+                    <span>🌱</span>
+
+                    <strong>Crop Guide</strong>
+
+                    <small>Learn management tips</small>
+
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- DEMO NOTICE -->
+
+        <div class="dashboard-notice">
+
+            💡 <strong>Prototype Mode:</strong>
+            Dashboard data shown here is sample data for demonstration.
+            Live crop records will be connected in the backend.
+
+        </div>
+
+    </main>
+    <script src="script.js"></script>
+
+</body>
+
+</html>
