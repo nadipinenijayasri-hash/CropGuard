@@ -1082,6 +1082,7 @@ import os
 import gc
 import torch
 import numpy as np
+
 from PIL import Image
 
 
@@ -1097,6 +1098,7 @@ CORS(app)
 # MEMORY OPTIMIZATION
 # ============================================================
 
+# Use fewer CPU threads on small hosting instances.
 torch.set_num_threads(1)
 
 try:
@@ -1106,7 +1108,7 @@ except Exception:
 
 
 # ============================================================
-# MODEL — CROP DISEASE MODEL
+# MODEL
 # ============================================================
 
 MODEL_NAME = (
@@ -1114,48 +1116,35 @@ MODEL_NAME = (
     "mobilenet_v2_1.0_224-plant-disease-identification"
 )
 
-print()
-print("==========================================")
-print("Loading CropGuard AI model...")
-print("==========================================")
+model = None
 
 
-from transformers import AutoModelForImageClassification
+def load_model():
 
+    global model
 
-model = AutoModelForImageClassification.from_pretrained(
-    MODEL_NAME
-)
+    if model is not None:
+        return model
 
-model.eval()
+    print()
+    print("========================================")
+    print("Loading CropGuard AI model...")
+    print("========================================")
 
-print("CropGuard AI model loaded! 🌱🤖")
+    from transformers import AutoModelForImageClassification
 
+    model = AutoModelForImageClassification.from_pretrained(
+        MODEL_NAME,
+        low_cpu_mem_usage=True
+    )
 
-# ============================================================
-# SUPPORTED CROPS
-# ============================================================
+    model.eval()
 
-SUPPORTED_CROPS = [
+    print("CropGuard AI model loaded! 🌱🤖")
+    print("========================================")
+    print()
 
-    "apple",
-    "blueberry",
-    "cherry",
-    "corn",
-    "maize",
-    "grape",
-    "orange",
-    "peach",
-    "bell pepper",
-    "pepper",
-    "potato",
-    "raspberry",
-    "soybean",
-    "squash",
-    "strawberry",
-    "tomato"
-
-]
+    return model
 
 
 # ============================================================
@@ -1196,204 +1185,182 @@ def frontend(filename):
 
 
 # ============================================================
-# CLEAN CROP NAME
+# LIGHTWEIGHT LEAF CHECK
 # ============================================================
 
-def clean_crop_name(crop):
+def check_leaf_image(image):
+    """
+    Lightweight image check.
 
-    crop = str(crop)
-
-    crop = crop.replace(
-        "_",
-        " "
-    )
-
-    crop = crop.replace(
-        "(",
-        ""
-    )
-
-    crop = crop.replace(
-        ")",
-        ""
-    )
-
-    crop = crop.replace(
-        "  ",
-        " "
-    )
-
-    crop = crop.strip()
-
-
-    # Normalize corn / maize
-
-    if "corn" in crop.lower():
-
-        return "Maize"
-
-
-    if "maize" in crop.lower():
-
-        return "Maize"
-
-
-    return crop
-
-
-# ============================================================
-# CHECK SUPPORTED CROP
-# ============================================================
-
-def is_supported_crop(crop):
-
-    crop_lower = crop.lower()
-
-    for supported in SUPPORTED_CROPS:
-
-        if supported in crop_lower:
-
-            return True
-
-    return False
-
-
-# ============================================================
-# LIGHTWEIGHT IMAGE CHECK
-# ============================================================
-#
-# IMPORTANT:
-#
-# We removed CLIP because it was causing Render
-# to run out of RAM and exit with status 137.
-#
-# This is NOT an AI leaf classifier.
-#
-# It is only a lightweight sanity check used to
-# reject obviously non-plant images.
-#
-# ============================================================
-
-def basic_leaf_check(image):
+    This does NOT use another AI model.
+    It uses simple image characteristics to reject
+    obvious non-leaf images before disease prediction.
+    """
 
     try:
 
-        # Resize small to reduce memory
-
-        small = image.copy()
-
-        small.thumbnail(
-            (256, 256)
+        # Resize so the calculation is tiny.
+        small = image.resize(
+            (128, 128)
         )
 
-
-        image_array = np.asarray(
+        arr = np.asarray(
             small
         ).astype(
             np.float32
         )
 
+        # ----------------------------------------------------
+        # RGB CHANNELS
+        # ----------------------------------------------------
 
-        if image_array.size == 0:
+        r = arr[:, :, 0]
+        g = arr[:, :, 1]
+        b = arr[:, :, 2]
 
-            return False, 0
+        # ----------------------------------------------------
+        # GREEN PIXELS
+        # ----------------------------------------------------
 
-
-        r = image_array[:, :, 0]
-
-        g = image_array[:, :, 1]
-
-        b = image_array[:, :, 2]
-
-
-        # Green vegetation pixels
-
-        green_mask = (
-
+        green_pixels = (
             (g > r * 1.05)
-
             &
-
-            (g > b * 1.05)
-
+            (g > b * 1.03)
             &
-
             (g > 45)
-
         )
 
-
-        green_ratio = (
-            green_mask.mean()
+        green_ratio = float(
+            np.mean(green_pixels)
         )
 
+        # ----------------------------------------------------
+        # SATURATION
+        # ----------------------------------------------------
 
-        # Yellow / brown vegetation pixels
-        #
-        # Useful for diseased leaves that are not
-        # strongly green.
-
-        yellow_brown_mask = (
-
-            (r > 55)
-
-            &
-
-            (g > 45)
-
-            &
-
-            (r > b * 1.15)
-
-            &
-
-            (g > b * 1.10)
-
+        max_channel = np.max(
+            arr,
+            axis=2
         )
 
-
-        yellow_brown_ratio = (
-            yellow_brown_mask.mean()
+        min_channel = np.min(
+            arr,
+            axis=2
         )
 
+        saturation = (
+            max_channel - min_channel
+        ) / (
+            max_channel + 1.0
+        )
 
-        vegetation_ratio = (
+        colorful_ratio = float(
+            np.mean(
+                saturation > 0.15
+            )
+        )
 
-            green_ratio
+        # ----------------------------------------------------
+        # BRIGHTNESS
+        # ----------------------------------------------------
 
+        brightness = float(
+            np.mean(arr)
+        )
+
+        # ----------------------------------------------------
+        # SIMPLE TEXTURE CHECK
+        # ----------------------------------------------------
+
+        gray = (
+            0.299 * r
             +
-
-            yellow_brown_ratio * 0.35
-
+            0.587 * g
+            +
+            0.114 * b
         )
 
-
-        score = min(
-            vegetation_ratio,
-            1.0
+        horizontal_change = np.mean(
+            np.abs(
+                np.diff(
+                    gray,
+                    axis=1
+                )
+            )
         )
 
-
-        # Very basic sanity threshold.
-        #
-        # This mainly rejects obvious photos such as
-        # people, screens, buildings, random objects etc.
-        #
-        # Disease model + supported crop check are still
-        # used for the actual prediction.
-
-        looks_like_vegetation = (
-
-            score >= 0.12
-
+        vertical_change = np.mean(
+            np.abs(
+                np.diff(
+                    gray,
+                    axis=0
+                )
+            )
         )
 
+        texture_score = (
+            horizontal_change
+            +
+            vertical_change
+        ) / 2.0
 
-        return (
-            looks_like_vegetation,
-            score
+        # ----------------------------------------------------
+        # LEAF-LIKE SCORE
+        # ----------------------------------------------------
+
+        score = 0
+
+        if green_ratio >= 0.08:
+            score += 1
+
+        if green_ratio >= 0.18:
+            score += 1
+
+        if colorful_ratio >= 0.20:
+            score += 1
+
+        if texture_score >= 3.0:
+            score += 1
+
+        # ----------------------------------------------------
+        # VERY OBVIOUS NON-LEAF IMAGES
+        # ----------------------------------------------------
+
+        # Almost completely white / blank image
+        if brightness > 245:
+
+            return {
+                "is_leaf": False,
+                "score": score,
+                "green_ratio": green_ratio
+            }
+
+        # Very little color and very little green
+        if (
+            green_ratio < 0.03
+            and colorful_ratio < 0.10
+        ):
+
+            return {
+                "is_leaf": False,
+                "score": score,
+                "green_ratio": green_ratio
+            }
+
+        # ----------------------------------------------------
+        # FINAL DECISION
+        # ----------------------------------------------------
+
+        is_leaf = (
+            score >= 2
+            and green_ratio >= 0.08
         )
 
+        return {
+            "is_leaf": is_leaf,
+            "score": score,
+            "green_ratio": green_ratio
+        }
 
     except Exception as error:
 
@@ -1402,22 +1369,205 @@ def basic_leaf_check(image):
             error
         )
 
-        # Do not crash the analysis
-
-        return True, 0.0
+        # If the lightweight check fails,
+        # don't block the user unnecessarily.
+        return {
+            "is_leaf": True,
+            "score": 0,
+            "green_ratio": 0
+        }
 
 
 # ============================================================
-# ANALYZE IMAGE
+# IMAGE PREPARATION
+# ============================================================
+
+def prepare_image(image):
+
+    image_array = np.asarray(
+        image
+    ).astype(
+        np.float32
+    )
+
+    image_tensor = torch.from_numpy(
+        image_array
+    )
+
+    image_tensor = image_tensor.permute(
+        2,
+        0,
+        1
+    )
+
+    image_tensor = image_tensor.unsqueeze(
+        0
+    )
+
+    # --------------------------------------------------------
+    # RESIZE
+    # --------------------------------------------------------
+
+    image_tensor = torch.nn.functional.interpolate(
+
+        image_tensor,
+
+        size=(224, 224),
+
+        mode="bilinear",
+
+        align_corners=False
+
+    )
+
+    # --------------------------------------------------------
+    # 0-255 → 0-1
+    # --------------------------------------------------------
+
+    image_tensor = (
+        image_tensor / 255.0
+    )
+
+    # --------------------------------------------------------
+    # NORMALIZATION
+    # --------------------------------------------------------
+
+    mean = torch.tensor(
+        [0.5, 0.5, 0.5],
+        dtype=torch.float32
+    ).view(
+        1,
+        3,
+        1,
+        1
+    )
+
+    std = torch.tensor(
+        [0.5, 0.5, 0.5],
+        dtype=torch.float32
+    ).view(
+        1,
+        3,
+        1,
+        1
+    )
+
+    image_tensor = (
+        image_tensor - mean
+    ) / std
+
+    return image_tensor
+
+
+# ============================================================
+# VALID CROPS
+# ============================================================
+
+VALID_CROPS = [
+
+    "apple",
+    "blueberry",
+    "cherry",
+    "corn",
+    "maize",
+    "grape",
+    "orange",
+    "peach",
+    "bell pepper",
+    "pepper",
+    "potato",
+    "raspberry",
+    "soybean",
+    "squash",
+    "strawberry",
+    "tomato"
+
+]
+
+
+# ============================================================
+# CROP NORMALIZATION
+# ============================================================
+
+def clean_crop_name(crop):
+
+    crop = str(
+        crop
+    ).replace(
+        "_",
+        " "
+    )
+
+    crop = crop.replace(
+        "  ",
+        " "
+    ).strip()
+
+    crop_lower = crop.lower()
+
+    # --------------------------------------------------------
+    # Standardize maize
+    # --------------------------------------------------------
+
+    if (
+        "corn" in crop_lower
+        or "maize" in crop_lower
+    ):
+
+        return "Maize"
+
+    # --------------------------------------------------------
+    # Standardize bell pepper
+    # --------------------------------------------------------
+
+    if (
+        "bell pepper" in crop_lower
+        or crop_lower == "pepper"
+    ):
+
+        return "Bell Pepper"
+
+    # --------------------------------------------------------
+    # Capitalize normal crop names
+    # --------------------------------------------------------
+
+    return crop.title()
+
+
+# ============================================================
+# DISEASE CLEANING
+# ============================================================
+
+def clean_disease_name(disease):
+
+    disease = str(
+        disease
+    ).replace(
+        "_",
+        " "
+    )
+
+    disease = disease.replace(
+        "  ",
+        " "
+    ).strip()
+
+    if disease.lower() == "healthy":
+
+        return "No disease detected"
+
+    return disease.title()
+
+
+# ============================================================
+# ANALYZE
 # ============================================================
 
 @app.route(
     "/analyze",
     methods=["POST"]
 )
-
 def analyze():
-
 
     # ========================================================
     # CHECK IMAGE
@@ -1429,15 +1579,15 @@ def analyze():
 
             "success": False,
 
-            "is_leaf": False,
-
             "message":
                 "No image received."
 
         }), 400
 
 
-    image_file = request.files["image"]
+    image_file = request.files[
+        "image"
+    ]
 
 
     if image_file.filename == "":
@@ -1445,8 +1595,6 @@ def analyze():
         return jsonify({
 
             "success": False,
-
-            "is_leaf": False,
 
             "message":
                 "No image selected."
@@ -1456,176 +1604,114 @@ def analyze():
 
     try:
 
-
         # ====================================================
         # OPEN IMAGE
         # ====================================================
 
         image = Image.open(
             image_file
-        ).convert("RGB")
+        ).convert(
+            "RGB"
+        )
 
-
-        # ====================================================
-        # BASIC LEAF / VEGETATION CHECK
-        # ====================================================
 
         print()
-        print(
-            "========== IMAGE CHECK =========="
+        print("========================================")
+        print("NEW IMAGE ANALYSIS")
+        print("========================================")
+
+
+        # ====================================================
+        # STEP 1 — LIGHTWEIGHT LEAF CHECK
+        # ====================================================
+
+        leaf_check = check_leaf_image(
+            image
         )
 
-
-        looks_like_leaf, vegetation_score = (
-            basic_leaf_check(image)
-        )
-
+        is_leaf = leaf_check[
+            "is_leaf"
+        ]
 
         print(
-            "Vegetation score:",
+            "Green ratio:",
             round(
-                vegetation_score * 100,
+                leaf_check["green_ratio"] * 100,
                 2
             ),
             "%"
         )
 
+        print(
+            "Leaf-like score:",
+            leaf_check["score"]
+        )
+
+        print(
+            "Leaf image:",
+            is_leaf
+        )
+
 
         # ====================================================
-        # REJECT OBVIOUS NON-PLANT IMAGE
+        # REJECT OBVIOUS NON-LEAF
         # ====================================================
 
-        if not looks_like_leaf:
+        if not is_leaf:
 
             print(
-                "Image rejected: Not a likely leaf image ❌"
+                "Image rejected: not a leaf ❌"
             )
-
 
             return jsonify({
 
                 "success": True,
 
-                "status": "invalid",
+                "status": "uncertain",
 
                 "is_leaf": False,
 
-                "crop":
-                    "Unable to identify",
+                "management_allowed": False,
 
-                "disease":
-                    "Not a crop leaf",
+                "crop": "Unable to identify",
 
-                "confidence":
-                    round(
-                        vegetation_score * 100,
-                        2
-                    ),
+                "disease": "Not a crop leaf",
 
-                "severity":
-                    "Unknown",
+                "confidence": 0,
 
-                "risk":
-                    "Unknown",
+                "severity": "Unknown",
+
+                "risk": "Unknown",
 
                 "message":
-                    "Please upload a clear crop leaf image."
+                    "Please upload a clear photo of a crop leaf."
 
             })
 
 
         print(
-            "Image passed basic vegetation check ✅"
+            "Leaf image accepted ✅"
         )
 
 
         # ====================================================
-        # PREPARE IMAGE
+        # STEP 2 — LOAD DISEASE MODEL
         # ====================================================
 
-        image_array = np.array(
+        disease_model = load_model()
+
+
+        # ====================================================
+        # STEP 3 — PREPARE IMAGE
+        # ====================================================
+
+        image_tensor = prepare_image(
             image
         )
 
 
-        image_tensor = torch.from_numpy(
-            image_array
-        ).permute(
-            2,
-            0,
-            1
-        ).unsqueeze(
-            0
-        ).float()
-
-
         # ====================================================
-        # RESIZE
-        # ====================================================
-
-        image_tensor = torch.nn.functional.interpolate(
-
-            image_tensor,
-
-            size=(224, 224),
-
-            mode="bilinear",
-
-            align_corners=False
-
-        )
-
-
-        # ====================================================
-        # NORMALIZE 0-255 → 0-1
-        # ====================================================
-
-        image_tensor = (
-            image_tensor / 255.0
-        )
-
-
-        # ====================================================
-        # NORMALIZATION
-        # ====================================================
-
-        mean = torch.tensor(
-
-            [0.5, 0.5, 0.5],
-
-            dtype=torch.float32
-
-        ).view(
-            1,
-            3,
-            1,
-            1
-        )
-
-
-        std = torch.tensor(
-
-            [0.5, 0.5, 0.5],
-
-            dtype=torch.float32
-
-        ).view(
-            1,
-            3,
-            1,
-            1
-        )
-
-
-        image_tensor = (
-
-            image_tensor - mean
-
-        ) / std
-
-
-        # ====================================================
-        # DISEASE MODEL
+        # STEP 4 — DISEASE PREDICTION
         # ====================================================
 
         print()
@@ -1636,7 +1722,7 @@ def analyze():
 
         with torch.inference_mode():
 
-            outputs = model(
+            outputs = disease_model(
                 pixel_values=image_tensor
             )
 
@@ -1645,12 +1731,9 @@ def analyze():
         # PROBABILITIES
         # ====================================================
 
-        disease_probabilities = torch.softmax(
-
+        probabilities = torch.softmax(
             outputs.logits,
-
             dim=1
-
         )
 
 
@@ -1660,42 +1743,37 @@ def analyze():
 
         confidence, predicted_class = torch.max(
 
-            disease_probabilities,
+            probabilities,
 
             dim=1
 
         )
 
 
-        predicted_class = (
+        predicted_class = int(
             predicted_class.item()
         )
 
 
-        confidence = (
+        confidence = float(
             confidence.item() * 100
         )
 
 
         # ====================================================
-        # GET MODEL LABEL
+        # GET LABEL
         # ====================================================
 
-        label = model.config.id2label[
-            predicted_class
-        ]
-
-
-        raw_label = str(
-            label
-        ).strip()
+        label = disease_model.config.id2label.get(
+            predicted_class,
+            "Unknown"
+        )
 
 
         print(
             "RAW MODEL LABEL:",
-            raw_label
+            label
         )
-
 
         print(
             "Disease confidence:",
@@ -1708,21 +1786,13 @@ def analyze():
 
 
         # ====================================================
-        # PARSE MODEL LABEL
+        # PARSE LABEL
         # ====================================================
 
-        crop = ""
+        raw_label = str(
+            label
+        ).strip()
 
-        disease = ""
-
-
-        # ----------------------------------------------------
-        # PlantVillage format
-        #
-        # Tomato___healthy
-        # Tomato___Bacterial_spot
-        # Corn_(maize)___Common_rust
-        # ----------------------------------------------------
 
         if "___" in raw_label:
 
@@ -1731,15 +1801,10 @@ def analyze():
                 1
             )
 
-
             crop = parts[0].strip()
 
             disease = parts[1].strip()
 
-
-        # ----------------------------------------------------
-        # "with" format
-        # ----------------------------------------------------
 
         elif " with " in raw_label:
 
@@ -1748,15 +1813,10 @@ def analyze():
                 1
             )
 
-
             crop = parts[0].strip()
 
             disease = parts[1].strip()
 
-
-        # ----------------------------------------------------
-        # Healthy format
-        # ----------------------------------------------------
 
         elif raw_label.lower().startswith(
             "healthy "
@@ -1766,15 +1826,8 @@ def analyze():
                 len("Healthy "):
             ].strip()
 
+            disease = "No disease detected"
 
-            disease = (
-                "No disease detected"
-            )
-
-
-        # ----------------------------------------------------
-        # Unknown format
-        # ----------------------------------------------------
 
         else:
 
@@ -1784,40 +1837,25 @@ def analyze():
 
 
         # ====================================================
-        # CLEAN CROP
+        # CLEAN NAMES
         # ====================================================
 
         crop = clean_crop_name(
             crop
         )
 
-
-        # ====================================================
-        # CLEAN DISEASE
-        # ====================================================
-
-        disease = disease.replace(
-            "_",
-            " "
+        disease = clean_disease_name(
+            disease
         )
 
 
-        disease = disease.replace(
-            "  ",
-            " "
-        ).strip()
-
-
         # ====================================================
-        # HEALTHY DETECTION
+        # HEALTHY CHECK
         # ====================================================
 
-        disease_lower = (
-            disease.lower()
-        )
+        disease_lower = disease.lower()
 
-
-        if (
+        is_healthy = (
 
             "healthy" in disease_lower
 
@@ -1825,19 +1863,26 @@ def analyze():
 
             "no disease" in disease_lower
 
-        ):
+        )
 
-            disease = (
-                "No disease detected"
-            )
+
+        if is_healthy:
+
+            disease = "No disease detected"
 
 
         # ====================================================
-        # SUPPORTED CROP CHECK
+        # VALID CROP CHECK
         # ====================================================
 
-        supported = is_supported_crop(
-            crop
+        crop_lower = crop.lower()
+
+        is_valid_crop = any(
+
+            valid_crop in crop_lower
+
+            for valid_crop in VALID_CROPS
+
         )
 
 
@@ -1846,65 +1891,15 @@ def analyze():
             crop
         )
 
-
         print(
             "Parsed disease:",
             disease
         )
 
-
         print(
-            "Supported crop:",
-            supported
+            "Valid crop:",
+            is_valid_crop
         )
-
-
-        # ====================================================
-        # UNSUPPORTED CROP
-        # ====================================================
-
-        if not supported:
-
-            print(
-                "Crop unsupported ⚠️"
-            )
-
-
-            return jsonify({
-
-                "success": True,
-
-                "status":
-                    "unsupported",
-
-                "is_leaf":
-                    True,
-
-                "crop":
-                    crop
-                    if crop
-                    else
-                    "Leaf detected",
-
-                "disease":
-                    "Crop not supported",
-
-                "confidence":
-                    round(
-                        confidence,
-                        2
-                    ),
-
-                "severity":
-                    "Unknown",
-
-                "risk":
-                    "Unknown",
-
-                "message":
-                    "A leaf was detected, but this crop is not currently supported by CropGuard."
-
-            })
 
 
         # ====================================================
@@ -1914,40 +1909,73 @@ def analyze():
         if confidence < 80:
 
             print(
-                "Disease confidence too low ❌"
+                "Prediction confidence too low ❌"
             )
-
 
             return jsonify({
 
                 "success": True,
 
-                "status":
-                    "uncertain",
+                "status": "uncertain",
 
-                "is_leaf":
-                    True,
+                "is_leaf": True,
 
-                "crop":
-                    crop,
+                "management_allowed": False,
 
-                "disease":
-                    "Uncertain result",
+                "crop": "Unable to identify",
 
-                "confidence":
-                    round(
-                        confidence,
-                        2
-                    ),
+                "disease": "Uncertain result",
 
-                "severity":
-                    "Unknown",
+                "confidence": round(
+                    confidence,
+                    2
+                ),
 
-                "risk":
-                    "Unknown",
+                "severity": "Unknown",
+
+                "risk": "Unknown",
 
                 "message":
-                    "CropGuard could not confidently identify the condition."
+                    "CropGuard could not confidently identify this leaf."
+
+            })
+
+
+        # ====================================================
+        # INVALID CROP
+        # ====================================================
+
+        if not is_valid_crop:
+
+            print(
+                "Unsupported crop ❌"
+            )
+
+            return jsonify({
+
+                "success": True,
+
+                "status": "uncertain",
+
+                "is_leaf": True,
+
+                "management_allowed": False,
+
+                "crop": "Unable to identify",
+
+                "disease": "Uncertain result",
+
+                "confidence": round(
+                    confidence,
+                    2
+                ),
+
+                "severity": "Unknown",
+
+                "risk": "Unknown",
+
+                "message":
+                    "CropGuard could not identify a supported crop leaf."
 
             })
 
@@ -1956,7 +1984,7 @@ def analyze():
         # SEVERITY + RISK
         # ====================================================
 
-        if disease == "No disease detected":
+        if is_healthy:
 
             severity = "None"
 
@@ -1967,14 +1995,21 @@ def analyze():
 
             severity = "Moderate"
 
-            risk = "High"
+            risk = "High Risk"
 
 
         else:
 
             severity = "Moderate"
 
-            risk = "Medium"
+            risk = "Medium Risk"
+
+
+        # ====================================================
+        # MANAGEMENT ALLOWED
+        # ====================================================
+
+        management_allowed = True
 
 
         # ====================================================
@@ -1986,24 +2021,15 @@ def analyze():
             "========== FINAL RESULT =========="
         )
 
-
-        print(
-            "Is leaf:",
-            True
-        )
-
-
         print(
             "Crop:",
             crop
         )
 
-
         print(
             "Disease:",
             disease
         )
-
 
         print(
             "Confidence:",
@@ -2014,18 +2040,20 @@ def analyze():
             "%"
         )
 
-
         print(
             "Severity:",
             severity
         )
-
 
         print(
             "Risk:",
             risk
         )
 
+        print(
+            "Management:",
+            "Allowed"
+        )
 
         print(
             "=================================="
@@ -2033,57 +2061,49 @@ def analyze():
 
 
         # ====================================================
-        # CLEAN MEMORY AFTER PREDICTION
+        # CLEAN TEMP MEMORY
         # ====================================================
 
-        del image_array
-
         del image_tensor
-
         del outputs
-
-        del disease_probabilities
+        del probabilities
 
         gc.collect()
 
 
         # ====================================================
-        # RETURN RESULT
+        # RESPONSE
         # ====================================================
 
         return jsonify({
 
             "success": True,
 
-            "status":
-                "success",
+            "status": "success",
 
-            "is_leaf":
-                True,
+            "is_leaf": True,
 
-            "crop":
-                crop,
+            "management_allowed":
+                management_allowed,
 
-            "disease":
-                disease,
+            "crop": crop,
 
-            "confidence":
-                round(
-                    confidence,
-                    2
-                ),
+            "disease": disease,
 
-            "severity":
-                severity,
+            "confidence": round(
+                confidence,
+                2
+            ),
 
-            "risk":
-                risk
+            "severity": severity,
+
+            "risk": risk
 
         })
 
 
     # ========================================================
-    # ERROR HANDLING
+    # ERROR
     # ========================================================
 
     except Exception as error:
@@ -2093,17 +2113,14 @@ def analyze():
             "========== ERROR =========="
         )
 
-
         print(
             "ERROR:",
             error
         )
 
-
         print(
             "==========================="
         )
-
 
         gc.collect()
 
@@ -2112,12 +2129,30 @@ def analyze():
 
             "success": False,
 
-            "is_leaf": False,
-
             "message":
                 "Could not analyze image."
 
         }), 500
+
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
+@app.route(
+    "/health",
+    methods=["GET"]
+)
+def health():
+
+    return jsonify({
+
+        "status": "ok",
+
+        "service":
+            "CropGuard"
+
+    })
 
 
 # ============================================================
@@ -2132,7 +2167,6 @@ if __name__ == "__main__":
             5000
         )
     )
-
 
     app.run(
 
